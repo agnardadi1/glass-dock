@@ -351,7 +351,7 @@ let pollSoonTimer = null;
 const pollSoon = (ms = 60) => { clearTimeout(pollSoonTimer); pollSoonTimer = setTimeout(pollRunning, ms); };
 
 // ---------- clicking an app ----------
-async function activate(uid) {
+async function activate(uid, opts = {}) {
   let key = null, launch = null;
   if (uid.startsWith('p:')) {
     const item = state.items.find((i) => i.id === uid.slice(2));
@@ -363,14 +363,30 @@ async function activate(uid) {
   }
   const g = key && windowsByKey.get(key);
   if (g && g.windows.length) {
-    const top = g.windows[0];
-    if (top.addr === lastAppFg && !top.minimized) {
-      g.windows.forEach((w) => win32.minimize(w.hwnd)); // clicking the app you're in minimises it
-    } else if (top.minimized && state.settings.minimizeToDock) {
-      await ghostRestore(top, key, uid); // grow out of the icon, then show the window
-      win32.focus(top.hwnd);
+    const wins = g.windows;                      // top-most first
+    const top = wins[0];
+    const inApp = wins.some((w) => w.addr === lastAppFg && !w.minimized);
+    if (opts.minimizeAll) {
+      wins.forEach((w) => win32.minimize(w.hwnd));
+    } else if (inApp && wins.length > 1) {
+      // Several windows and you're already in this app: go to the next one (a steady order, so repeated clicks go round them all)
+      const order = [...wins].sort((a, b) => (a.addr < b.addr ? -1 : a.addr > b.addr ? 1 : 0));
+      const i = order.findIndex((w) => w.addr === lastAppFg);
+      const next = order[(i + 1) % order.length];
+      if (next.minimized && state.settings.minimizeToDock) await ghostRestore(next, key, uid);
+      win32.focus(next.hwnd);
+    } else if (inApp) {
+      wins.forEach((w) => win32.minimize(w.hwnd)); // one window and you're in it: minimise, like the taskbar
     } else {
-      win32.focus(top.hwnd);
+      // Coming from another app: bring all of this app's open windows forward, the last-used one on top
+      const shown = wins.filter((w) => !w.minimized);
+      if (!shown.length) {
+        if (state.settings.minimizeToDock) await ghostRestore(top, key, uid);
+        win32.focus(top.hwnd);
+      } else {
+        for (const w of shown.slice(1).reverse()) safe('raise', () => win32.toTop(w.hwnd));
+        win32.focus(shown[0].hwnd);
+      }
     }
     pollSoon(200);
     return 'focused';
@@ -753,6 +769,7 @@ ipcMain.on('context', (_e, uid) => {
   }
   if (g) {
     tpl.push({ type: 'separator' });
+    if (g.windows.length > 1) tpl.push({ label: `Minimise all windows (${g.windows.length})`, click: () => g.windows.forEach((w) => win32.minimize(w.hwnd)) });
     tpl.push({ label: g.windows.length > 1 ? `Quit (${g.windows.length} windows)` : 'Quit',
       click: () => { g.windows.forEach((w) => win32.close(w.hwnd)); pollSoon(600); } });
   }
@@ -876,7 +893,7 @@ ipcMain.on('sound-size', (_e, h) => {
 ipcMain.on('sound-cmd', (_e, cmd) => { if (/^(set|vol|micvol|mute|micmute) \S/.test(cmd)) sound.send(cmd); });
 ipcMain.on('sound-settings', () => { shell.openExternal('ms-settings:sound'); if (alive(soundWin)) soundWin.hide(); });
 
-ipcMain.handle('activate', (_e, uid) => activate(uid));
+ipcMain.handle('activate', (_e, uid, opts) => activate(uid, opts || {}));
 ipcMain.handle('get-state', () => ({ settings: state.settings, list: dockList(), media: media.last, sound: sound.last, workspaces: { list: state.workspaces, active: state.activeWorkspace } }));
 ipcMain.on('bar-rect', (_e, r) => {
   if (!shown || !alive(dock)) return;

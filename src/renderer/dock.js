@@ -37,7 +37,7 @@ function makeEl(uid) {
   el.draggable = false; // arranging uses the live drag below; dropping files still works
   el.innerHTML = '<span class="tip"></span><span class="icon"></span><span class="dot"></span>';
   el.cur = 0;
-  el.addEventListener('click', () => { if (el.justDragged) { el.justDragged = false; return; } onClick(el); });
+  el.addEventListener('click', (e) => { if (el.justDragged) { el.justDragged = false; return; } onClick(el, e); });
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (uid.startsWith('ws:')) api.wsMenu(uid.slice(3));
@@ -122,6 +122,7 @@ function update(el, it) {
   el.classList.toggle('running', !!it.running);
   el.classList.toggle('active', !!it.active);
   el.classList.toggle('attn', !!it.attention);
+  el.dataset.wins = it.running ? String(Math.min(3, it.count || 1)) : '0'; // one dot per window, up to three
   let b = el.querySelector('.count');
   if (it.badge) {
     if (!b) { b = document.createElement('span'); b.className = 'count'; el.querySelector('.icon').after(b); }
@@ -190,7 +191,7 @@ soundEl.addEventListener('wheel', (e) => {
 soundEl.querySelector('.icon').innerHTML = ICONS.speaker;
 
 const SYS_ACTIONS = { 'sys:settings': 'settings', 'sys:downloads': 'downloads', 'sys:trash': 'trash', 'sys:start': 'start', 'sys:quick': 'quick', 'sys:clock': 'notify' };
-async function onClick(el) {
+async function onClick(el, e = {}) {
   const uid = el.dataset.uid;
   const stackOn = settings && settings.stacks !== false;
   if (stackOn && (uid === 'sys:downloads' || (uid.startsWith('p:') && (list.find((i) => i.uid === uid) || {}).kind === 'folder'))) {
@@ -206,7 +207,7 @@ async function onClick(el) {
   if (SYS_ACTIONS[uid]) return api.openSystem(SYS_ACTIONS[uid]);
   const it = list.find((i) => i.uid === uid);
   if (it && !it.running && it.kind === 'app') startBounce(el);
-  const r = await api.activate(uid);
+  const r = await api.activate(uid, { minimizeAll: !!e.shiftKey }); // Shift+click minimises all its windows
   if (r !== 'launched') stopBounce(el);
 }
 

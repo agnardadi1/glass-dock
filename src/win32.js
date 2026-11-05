@@ -9,7 +9,7 @@ if (!isWin) {
   module.exports = {
     available: false,
     listWindows: () => [], foregroundInfo: () => null, windowInfo: () => null, clipboardSeq: () => 0,
-    focus: noop, minimize: noop, close: noop, rect: () => null, place: noop, raise: noop, moveTo: noop,
+    focus: noop, minimize: noop, close: noop, rect: () => null, place: noop, raise: noop, moveTo: noop, toTop: noop,
     registerShellHook: () => null, setForegroundRaw: noop, windowIcon: () => null,
     pressKeys: noop, showTaskbars: noop, taskbarAutoHide: () => false, setTaskbarAutoHide: noop,
     getMinAnimate: () => 1, setMinAnimate: noop, setWorkArea: noop,
@@ -247,6 +247,8 @@ const hwndNum = (h) => (Buffer.isBuffer(h) ? h.readBigUInt64LE(0) : h ? koffi.ad
       if (maximize) f.ShowWindow(hwnd, 3); // SW_MAXIMIZE
     },
     raise(hwnd) { f.SetForegroundWindow(hwnd); },
+    // Bring a window up the stack without focusing it
+    toTop(hwnd) { f.SetWindowPos(hwnd, null, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); }, // NOSIZE | NOMOVE | NOACTIVATE (after = HWND_TOP)
     // Move without resizing, reordering or focusing (physical pixels)
     moveTo(hwnd, x, y) { f.SetWindowPos(hwnd, null, x, y, 0, 0, 0x0001 | 0x0004 | 0x0010); },
     // Lets the dock hear when an app flashes for attention (what used to make taskbar buttons go orange)

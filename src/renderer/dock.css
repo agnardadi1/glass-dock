@@ -157,6 +157,13 @@ html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
 .item.poof .icon { animation: poof .22s ease-in forwards; }
 @keyframes poof { to { transform: scale(1.5); opacity: 0; filter: blur(4px); } }
 
+/* More than one window open: two or three dots */
+.dock:not([data-ind="line"]):not([data-ind="glow"]) .item[data-wins="2"] .dot { box-shadow: -3.5px 0 0 var(--fg), 3.5px 0 0 var(--fg); background: transparent; }
+.dock:not([data-ind="line"]):not([data-ind="glow"]) .item[data-wins="3"] .dot { box-shadow: -6px 0 0 var(--fg), 6px 0 0 var(--fg); }
+.dock[data-ind="glow"] .item[data-wins="2"] .dot { margin-left: 1px; box-shadow: 0 0 8px 2px var(--ind-c, var(--accent)), -8px 0 0 var(--ind-c, var(--accent)); }
+.dock[data-ind="glow"] .item[data-wins="3"] .dot { box-shadow: 0 0 8px 2px var(--ind-c, var(--accent)), -9px 0 0 var(--ind-c, var(--accent)), 9px 0 0 var(--ind-c, var(--accent)); }
+.dock[data-ind="line"] .item[data-wins="2"] .dot, .dock[data-ind="line"] .item[data-wins="3"] .dot { width: 46%; left: 27%; }
+
 /* Workspace tiles */
 .icon.ws .emoji { font-size: calc(var(--s, var(--base)) * .48); line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
 

@@ -11,7 +11,7 @@ contextBridge.exposeInMainWorld('dockApi', {
   onVisible: on('visible'),
   onMedia: on('media'),
   onCatch: on('catch'),
-  activate: (uid) => ipcRenderer.invoke('activate', uid),
+  activate: (uid, opts) => ipcRenderer.invoke('activate', uid, opts),
   context: (uid) => ipcRenderer.send('context', uid),
   dockMenu: () => ipcRenderer.send('dock-menu'),
   drop: (payload) => ipcRenderer.invoke('drop', payload),
