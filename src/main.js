@@ -961,7 +961,7 @@ function openSettings(tab) {
 }
 
 function createTray() {
-  const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'icon.png')).resize({ width: 16, height: 16 });
+  const img = nativeImage.createFromPath(path.join(__dirname, '..', 'assets', 'tray.png')); // tray@2x.png is picked up on high-DPI screens
   tray = new Tray(img);
   tray.setToolTip('Glass Dock');
   tray.on('click', openSettings);

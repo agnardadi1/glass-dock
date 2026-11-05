@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- night sky with a northern-lights glow -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101a3f"/>
+      <stop offset="0.55" stop-color="#241a5e"/>
+      <stop offset="1" stop-color="#3a1f6e"/>
+    </linearGradient>
+    <radialGradient id="aurora1" cx="0.3" cy="0.28" r="0.55">
+      <stop offset="0" stop-color="#3dffb5" stop-opacity="0.75"/>
+      <stop offset="0.5" stop-color="#22c7a9" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="#22c7a9" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="aurora2" cx="0.78" cy="0.34" r="0.5">
+      <stop offset="0" stop-color="#8f6bff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#8f6bff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="t1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5ec8ff"/><stop offset="1" stop-color="#2a7bf0"/></linearGradient>
+    <linearGradient id="t2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffb36b"/><stop offset="1" stop-color="#ff5c8a"/></linearGradient>
+    <linearGradient id="t3" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7cf0b4"/><stop offset="1" stop-color="#1fb57a"/></linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.55"/><stop offset="0.5" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="36"/></filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#0a0820" flood-opacity="0.55"/></filter>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="204"/></clipPath>
+  </defs>
+
+  <g clip-path="url(#tile)">
+    <rect x="64" y="64" width="896" height="896" fill="url(#sky)"/>
+    <!-- aurora ribbons -->
+    <g filter="url(#soft)">
+      <ellipse cx="330" cy="300" rx="380" ry="150" fill="url(#aurora1)" transform="rotate(-18 330 300)"/>
+      <ellipse cx="760" cy="330" rx="320" ry="140" fill="url(#aurora2)" transform="rotate(14 760 330)"/>
+    </g>
+    <path d="M40 380 C 260 250, 470 330, 640 240 S 930 200, 1000 260" stroke="#5dffc4" stroke-opacity="0.35" stroke-width="26" fill="none" filter="url(#soft)"/>
+    <!-- stars -->
+    <g fill="#fff">
+      <circle cx="232" cy="176" r="5" opacity=".8"/><circle cx="612" cy="150" r="4" opacity=".7"/>
+      <circle cx="812" cy="208" r="5" opacity=".6"/><circle cx="420" cy="214" r="3" opacity=".6"/>
+    </g>
+    <!-- the island: a black pill at the top -->
+    <rect x="392" y="148" width="240" height="64" rx="32" fill="#05060c"/>
+    <rect x="392" y="148" width="240" height="64" rx="32" fill="none" stroke="#ffffff" stroke-opacity="0.22" stroke-width="3"/>
+    <circle cx="430" cy="180" r="13" fill="#3dffb5"/>
+    <rect x="560" y="170" width="6" height="20" rx="3" fill="#3dffb5"/><rect x="574" y="164" width="6" height="32" rx="3" fill="#3dffb5"/><rect x="588" y="172" width="6" height="16" rx="3" fill="#3dffb5"/>
+  </g>
+
+  <!-- the glass dock bar -->
+  <g filter="url(#shadow)">
+    <rect x="148" y="620" width="728" height="196" rx="70" fill="url(#glass)"/>
+    <rect x="148" y="620" width="728" height="196" rx="70" fill="none" stroke="url(#edge)" stroke-width="5"/>
+  </g>
+  <!-- app tiles; the middle one is magnified, like the dock under the mouse -->
+  <g filter="url(#shadow)">
+    <rect x="200" y="672" width="130" height="130" rx="34" fill="url(#t1)"/>
+    <rect x="694" y="672" width="130" height="130" rx="34" fill="url(#t3)"/>
+    <rect x="388" y="516" width="248" height="248" rx="62" fill="url(#t2)"/>
+  </g>
+  <rect x="200" y="672" width="130" height="65" rx="34" fill="url(#shine)"/>
+  <rect x="694" y="672" width="130" height="65" rx="34" fill="url(#shine)"/>
+  <rect x="388" y="516" width="248" height="124" rx="62" fill="url(#shine)"/>
+  <!-- running-app dot under the magnified tile -->
+  <circle cx="512" cy="792" r="11" fill="#fff" opacity=".9"/>
+</svg>
