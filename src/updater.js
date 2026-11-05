@@ -5,17 +5,22 @@ const { app, ipcMain } = require('electron');
 module.exports = function createUpdater({ notify, onChange }) {
   const state = { status: 'idle', version: null, message: '', progress: 0 };
   let au = null;
-  const pkg = require('../package.json');
-  const pub = (pkg.build && pkg.build.publish && pkg.build.publish[0]) || {};
-  const configured = pub.owner && pub.owner !== 'YOUR_GITHUB_NAME';
+  // Where updates come from. The installer normally ships this in app-update.yml;
+  // if that file is missing, the same details are set directly below.
+  const FEED = { provider: 'github', owner: 'agnardadi1', repo: 'glass-dock' };
+  const path = require('path');
+  const fs = require('fs');
+  const hasYml = fs.existsSync(path.join(process.resourcesPath || '', 'app-update.yml'));
+  const configured = true;
 
   function set(patch) { Object.assign(state, patch); onChange(state); }
 
   if (!app.isPackaged) set({ status: 'dev', message: 'Updates work in the installed app (not while testing with npm start).' });
-  else if (!configured) set({ status: 'off', message: 'Auto-updates aren\'t set up yet: run "npm run setup-updates" before building.' });
+  else if (!configured) set({ status: 'off', message: 'This copy was built without update information, so it can\'t update itself. Install the latest version from github.com/agnardadi1/glass-dock/releases.' });
   else {
     try {
       ({ autoUpdater: au } = require('electron-updater'));
+      if (!hasYml) au.setFeedURL(FEED);
       au.autoDownload = true;
       au.autoInstallOnAppQuit = true;
       au.on('checking-for-update', () => set({ status: 'checking', message: 'Checking for updates…' }));
