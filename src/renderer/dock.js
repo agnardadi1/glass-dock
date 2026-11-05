@@ -198,7 +198,7 @@ async function onClick(el) {
   }
   if (uid.startsWith('ws:')) { startBounce(el); await api.wsActivate(uid.slice(3)); stopBounce(el); return; }
   if (uid === 'sys:sound') {
-    const r = soundEl.getBoundingClientRect();
+    const r = soundEl.querySelector('.icon').getBoundingClientRect(); // the enlarged tile, not just the bar slot
     return api.soundOpen({ x: r.x, y: r.y, width: r.width, height: r.height });
   }
   if (SYS_ACTIONS[uid]) return api.openSystem(SYS_ACTIONS[uid]);

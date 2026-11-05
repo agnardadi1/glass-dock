@@ -803,29 +803,35 @@ function createSoundWin() {
   soundWin.on('blur', () => { if (soundWin.isVisible()) { soundWin.hide(); soundHiddenAt = Date.now(); } });
 }
 
+let soundAnchor = null; // { cx, bottom }: the panel sits centred above this point, clear of the tile
+function placeSound(height) {
+  if (!alive(soundWin) || !soundAnchor) return;
+  const b = targetDisplay().bounds;
+  const width = 340;
+  const x = Math.round(Math.max(b.x + 8, Math.min(soundAnchor.cx - width / 2, b.x + b.width - width - 8)));
+  const y = Math.round(Math.max(b.y + 8, soundAnchor.bottom - height));
+  soundWin.setBounds({ x, y, width, height });
+}
 ipcMain.on('sound-open', async (_e, r) => {
   if (!alive(dock)) return;
   if (!alive(soundWin)) createSoundWin();
   if (soundWin.isVisible()) { soundWin.hide(); return; }
-  if (soundWin.webContents.isLoading()) await new Promise((r) => soundWin.webContents.once('did-finish-load', r));
+  if (soundWin.webContents.isLoading()) await new Promise((res) => soundWin.webContents.once('did-finish-load', res));
   if (Date.now() - soundHiddenAt < 300) return; // the click that closed it shouldn't reopen it
   const wb = dock.getBounds();
-  const b = targetDisplay().workArea.width ? targetDisplay().bounds : wb;
-  const { height } = soundWin.getBounds();
-  const width = 340;
-  const cx = wb.x + r.x + r.width / 2;
-  const top = (restRect ? restRect.y : wb.y + r.y) - height - 10;
-  const x = Math.round(Math.max(b.x + 8, Math.min(cx - width / 2, b.x + b.width - width - 8)));
-  soundWin.setBounds({ x, y: Math.round(top), width, height });
+  const tileTop = wb.y + r.y;                   // top of the (enlarged) tile
+  const barTop = restRect ? restRect.y : tileTop;
+  soundAnchor = { cx: wb.x + r.x + r.width / 2, bottom: Math.min(tileTop, barTop) - 12 };
+  placeSound(soundWin.getBounds().height);
   soundWin.show();
   soundWin.focus();
   if (sound.last) soundWin.webContents.send('sound', sound.last);
 });
 ipcMain.on('sound-size', (_e, h) => {
   if (!alive(soundWin)) return;
-  const b = soundWin.getBounds();
   const height = Math.max(120, Math.min(900, Math.ceil(h)));
-  if (height !== b.height) soundWin.setBounds({ x: b.x, y: b.y + b.height - height, width: b.width, height });
+  if (soundAnchor) placeSound(height); // grow upwards, never down over the tile
+  else { const b = soundWin.getBounds(); soundWin.setBounds({ ...b, height }); }
 });
 ipcMain.on('sound-cmd', (_e, cmd) => { if (/^(set|vol|micvol|mute|micmute) \S/.test(cmd)) sound.send(cmd); });
 ipcMain.on('sound-settings', () => { shell.openExternal('ms-settings:sound'); if (alive(soundWin)) soundWin.hide(); });

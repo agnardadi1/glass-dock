@@ -64,7 +64,7 @@ module.exports = function createStacks({ webPrefs, dockWin, restRect, safe, reso
     const width = cols * 106 + 28, height = rows * 126 + 96;
     const d = screen.getDisplayMatching(tileRect);
     const b = d.bounds;
-    const top = (restRect() ? restRect().y : tileRect.y) - height - 8;
+    const top = Math.min(restRect() ? restRect().y : tileRect.y, tileRect.y) - height - 12; // above the enlarged tile too
     const x = Math.round(Math.max(b.x + 8, Math.min(tileRect.x + tileRect.width / 2 - width / 2, b.x + b.width - width - 8)));
     win.setBounds({ x, y: Math.round(top), width, height });
     win.webContents.send('stack', { title, dir, ...data });
