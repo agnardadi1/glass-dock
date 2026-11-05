@@ -803,10 +803,11 @@ function createSoundWin() {
   soundWin.on('blur', () => { if (soundWin.isVisible()) { soundWin.hide(); soundHiddenAt = Date.now(); } });
 }
 
-ipcMain.on('sound-open', (_e, r) => {
+ipcMain.on('sound-open', async (_e, r) => {
   if (!alive(dock)) return;
   if (!alive(soundWin)) createSoundWin();
   if (soundWin.isVisible()) { soundWin.hide(); return; }
+  if (soundWin.webContents.isLoading()) await new Promise((r) => soundWin.webContents.once('did-finish-load', r));
   if (Date.now() - soundHiddenAt < 300) return; // the click that closed it shouldn't reopen it
   const wb = dock.getBounds();
   const b = targetDisplay().workArea.width ? targetDisplay().bounds : wb;
@@ -883,7 +884,10 @@ function createDock() {
   dock.setAlwaysOnTop(true, 'pop-up-menu');
   dock.setIgnoreMouseEvents(true, { forward: true });
   dock.loadFile(path.join(__dirname, 'renderer', 'dock.html'));
-  dock.once('ready-to-show', () => { dock.showInactive(); applyReservedSpace(); safe('attention', listenForAttention); });
+  dock.once('ready-to-show', () => {
+    dock.showInactive(); applyReservedSpace(); safe('attention', listenForAttention);
+    if (!alive(soundWin)) createSoundWin(); // ready before the first click, so it opens complete
+  });
 }
 
 function createOverlay() {

@@ -60,4 +60,6 @@ $('micMute').addEventListener('click', () => { if (st) api.soundCmd('micmute ' +
 $('more').addEventListener('click', () => api.soundSettings());
 
 api.onSound(render);
+// Don't wait for the next update: show the devices straight away
+api.getState().then((st) => { if (st && st.sound) render(st.sound); });
 api.soundSize($('panel').getBoundingClientRect().height + 8);
