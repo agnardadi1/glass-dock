@@ -4,6 +4,7 @@ const {
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
+const os = require('os');
 const store = require('./store');
 const win32 = require('./win32');
 const { Media } = require('./media');
@@ -71,7 +72,30 @@ const safe = (label, fn) => { try { return fn(); } catch (e) { console.error(`[$
 //  2. the small file icon
 //  3. Microsoft Store apps: the logo files inside the app's package (Windows locks the .exe itself)
 //  4. (for open apps, later) the icon shown on the app's window
-const usable = (img) => img && !img.isEmpty() && !looksBlank(img);
+const usable = (img) => img && !img.isEmpty() && !looksBlank(img) && !isGenericIcon(img);
+// Windows hands out the same plain "program" icon for apps it can't read a logo from.
+// Learn what it looks like (from an empty .exe) so it counts as "no logo found".
+let genericPrints = [];
+const printOf = (img) => img.resize({ width: 16, height: 16, quality: 'good' }).toBitmap();
+function isGenericIcon(img) {
+  if (!genericPrints.length) return false;
+  const p = printOf(img);
+  return genericPrints.some((g) => {
+    let d = 0;
+    for (let i = 0; i < g.length; i++) d += Math.abs(g[i] - p[i]);
+    return d / g.length < 14;
+  });
+}
+async function learnGenericIcon() {
+  const tmp = path.join(os.tmpdir(), 'glass-dock-no-icon.exe');
+  try { fs.writeFileSync(tmp, ''); } catch { return; }
+  const tries = [
+    () => nativeImage.createThumbnailFromPath(tmp, { width: ICON_PX, height: ICON_PX }),
+    () => app.getFileIcon(tmp, { size: 'large' }),
+    () => app.getFileIcon(tmp, { size: 'normal' }),
+  ];
+  for (const t of tries) { try { const img = await t(); if (img && !img.isEmpty()) genericPrints.push(printOf(img)); } catch { /* skip */ } }
+}
 function looksBlank(img) {
   // Some locked files come back as a fully transparent square
   const { width, height } = img.getSize();
@@ -636,6 +660,7 @@ function dockMenuTemplate() {
     ...(ready ? [{ label: `Restart to update to ${updater.state.version}`, click: () => updater.install() }, { type: 'separator' }] : []),
     { label: 'Dock settings…', click: openSettings },
     { label: 'Workspaces', submenu: workspaceMenu() },
+    { label: 'Show the music player on the dock', type: 'checkbox', checked: !!state.settings.media, click: (m) => saveSettings({ media: m.checked }) },
     { label: 'Auto-hide', submenu: Object.entries(HIDE_LABELS).map(([v, label]) => ({
       label, type: 'radio', checked: state.settings.autoHide === v, click: () => saveSettings({ autoHide: v }),
     })) },
@@ -758,7 +783,11 @@ ipcMain.on('media-focus', (_e, aumid) => {
   const g = windowsByKey.get(key);
   if (g) win32.focus(g.windows[0].hwnd);
 });
-function applyMediaSetting() { if (state.settings.media) media.start(); else media.stop(); }
+// The dock player and the island both use the music reader; it runs while either is on
+function applyMediaSetting() {
+  const s = state.settings;
+  if (s.media || (s.island && s.island.on && s.island.music)) media.start(); else media.stop();
+}
 
 // ---------- sound panel ----------
 function applySoundSetting() { if (state.settings.soundButton) sound.start(); else { sound.stop(); if (alive(soundWin)) soundWin.hide(); } }
@@ -900,7 +929,7 @@ function saveSettings(patch) {
   if (String(s.displayId) !== String(prev.displayId)) reposition();
   if (s.replaceTaskbar !== prev.replaceTaskbar) { workAreaTries.clear(); applyTaskbarSetting(); }
   if (s.minimizeToDock !== prev.minimizeToDock) applyMinimizeSetting();
-  if (s.media !== prev.media) applyMediaSetting();
+  if (s.media !== prev.media || JSON.stringify(s.island) !== JSON.stringify(prev.island)) applyMediaSetting();
   if (s.soundButton !== prev.soundButton) applySoundSetting();
   if (s.autoHide !== prev.autoHide || s.size !== prev.size) { applyReservedSpace(); revealUntil = 0; }
   if (alive(dock)) dock.webContents.send('settings', s);
@@ -961,6 +990,7 @@ function registerHotkeys() {
 
 // ---------- start up / shut down ----------
 app.whenReady().then(async () => {
+  await learnGenericIcon();
   // Music glow: lets the dock listen to what the PC is playing (system sound only, nothing is recorded)
   session.defaultSession.setDisplayMediaRequestHandler((_req, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
@@ -976,9 +1006,15 @@ app.whenReady().then(async () => {
     for (const p of seedPaths()) if (fs.existsSync(p)) state.items.push(await makeItem(p));
     persist();
   }
-  // Give pinned apps that are still missing a logo another try with the newer logo sources
+  // Give pinned apps that are still missing a logo (or only have the blank one) another try
   for (const it of state.items) {
-    if (it.icon || it.customIcon) continue;
+    if (it.customIcon) continue;
+    if (it.icon) {
+      let img = null;
+      try { img = nativeImage.createFromDataURL(it.icon); } catch { /* bad data */ }
+      if (img && !img.isEmpty() && !isGenericIcon(img)) continue;
+      it.icon = null;
+    }
     it.icon = await iconFor(shortcutIcon(it.path) || it.target || it.path, [it.target, it.path]);
     if (it.icon) persist();
   }
