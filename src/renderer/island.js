@@ -117,7 +117,8 @@ function html(v) {
         ${media.len > 0 ? `<div class="scrub"><span class="num" id="posT"></span><input type="range" id="seek" min="0" max="${media.len}" step="1" aria-label="Song position"><span class="num">${fmtTime(media.len)}</span></div>` : ''}
         <div class="ctrls"><button class="icon-btn" data-act="prev" aria-label="Previous">${I.prev}</button><button class="icon-btn lg" data-act="toggle" aria-label="Play or pause">${media.playing ? I.pause : I.play}</button><button class="icon-btn" data-act="next" aria-label="Next">${I.next}</button></div>`;
     }
-    return `<div class="row"><div class="art sm" ${artStyle()}></div><div class="grow"></div>${dotsHtml()}${barsHtml()}</div>`;
+    const prog = media.len > 0 ? '<span class="mini-prog"><i id="miniProg"></i></span>' : '';
+    return `<div class="row"><div class="art sm" ${artStyle()}></div><div class="grow">${prog}</div>${dotsHtml()}${barsHtml()}</div>`;
   }
   if (k === 'timer') {
     const ring = `<svg class="ic ring" viewBox="0 0 24 24"><circle class="bg" cx="12" cy="12" r="9"/><circle class="fg" id="ringFg" cx="12" cy="12" r="9" stroke-dasharray="56.55" stroke-dashoffset="0"/></svg>`;
@@ -392,6 +393,8 @@ function frame() {
     // music position + bars
     const pos = mediaPos();
     if ($('posT')) $('posT').textContent = fmtTime(pos);
+    const mp = $('miniProg');
+    if (mp && media && media.len > 0) mp.style.width = Math.min(100, (pos / media.len) * 100).toFixed(2) + '%';
     const seek = $('seek');
     if (seek && !seek.dragging) seek.value = pos;
     updateBars();
