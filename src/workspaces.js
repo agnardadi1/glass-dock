@@ -14,7 +14,7 @@ const ZONES = {
 const SKIP_EXE = /\\(applicationframehost|textinputhost|searchhost|startmenuexperiencehost|shellexperiencehost|lockapp)\.exe$/i;
 
 module.exports = function createWorkspaces(ctx) {
-  const { getState, persist, win32, keyOf, appName, safe, saveSettings, notify, broadcast } = ctx;
+  const { getState, persist, win32, keyOf, appName, safe, saveSettings, notify, broadcast, launchThing } = ctx;
   const wsList = () => getState().workspaces;
   let busy = false;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -103,7 +103,8 @@ module.exports = function createWorkspaces(ctx) {
         pending.push(a);
         if (!launched.has(a.key) || /\\(chrome|msedge|brave|firefox|code|explorer)\.exe$/i.test(a.exe)) {
           launched.add(a.key);
-          shell.openPath(launchPathFor(a)).catch(() => {});
+          const pinned = getState().items.find((i) => i.key === a.key);
+          Promise.resolve(launchThing(launchPathFor(a), pinned && pinned.aumid)).catch(() => {});
         }
       }
       for (const url of ws.urls || []) if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => {});

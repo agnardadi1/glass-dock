@@ -103,6 +103,41 @@ function looksBlank(img) {
   for (let i = 3; i < px.length; i += 4) if (px[i] > 16) return false;
   return width > 0 && height > 0;
 }
+// Microsoft Store apps live in a locked folder (…\WindowsApps\Publisher.App_version_arch__id\…),
+// so they can't be started by opening their .exe. They're started by their app ID instead,
+// "PackageFamilyName!AppId", the same way the Start menu does it.
+const storeIds = new Map();
+function storeAppId(file) {
+  const m = /\\WindowsApps\\([^\\_]+)_[^\\]*__([a-z0-9]+)\\(.+)$/i.exec(file || '');
+  if (!m) return null;
+  const family = `${m[1]}_${m[2]}`;
+  const exeRel = m[3].toLowerCase();
+  if (storeIds.has(file)) return storeIds.get(file);
+  let appId = null;
+  try {
+    const pkgDir = file.slice(0, file.length - m[3].length - 1);
+    const xml = fs.readFileSync(path.join(pkgDir, 'AppxManifest.xml'), 'utf8');
+    for (const a of xml.matchAll(/<Application\b[^>]*>/g)) {
+      const id = (/\bId="([^"]+)"/.exec(a[0]) || [])[1];
+      const exe = ((/\bExecutable="([^"]+)"/.exec(a[0]) || [])[1] || '').toLowerCase().replace(/\//g, '\\');
+      if (id && (exe === exeRel || exe.endsWith('\\' + path.basename(exeRel)) || exe === path.basename(exeRel))) { appId = id; break; }
+      if (id && !appId) appId = id; // first app in the package as a fallback
+    }
+  } catch { /* manifest unreadable (e.g. the app updated to a new folder) */ }
+  const aumid = appId ? `${family}!${appId}` : null;
+  storeIds.set(file, aumid);
+  return aumid;
+}
+// Opens an app, shortcut, folder or file; Store apps go through their app ID
+async function launchThing(p, savedAumid) {
+  const aumid = savedAumid || storeAppId(p);
+  if (aumid) {
+    spawn('explorer.exe', [`shell:AppsFolder\\${aumid}`], { detached: true, stdio: 'ignore' }).unref();
+    return '';
+  }
+  return shell.openPath(p);
+}
+
 function storeAppLogo(file) {
   const m = /^(.*\\WindowsApps\\[^\\]+)\\/i.exec(file || '');
   if (!m) return null;
@@ -178,7 +213,8 @@ async function makeItem(p) {
   const own = shortcutIcon(p);
   const first = own || (fs.existsSync(target) ? target : p);
   const icon = await iconFor(first, [target, p]);
-  return { id: uidId(), name: prettify(name), path: p, target, key, icon, kind: isDir(target) ? 'folder' : 'app' };
+  const aumid = storeAppId(target) || storeAppId(p) || undefined; // remembered, so it still opens after the Store updates the app
+  return { id: uidId(), name: prettify(name), path: p, target, key, icon, aumid, kind: isDir(target) ? 'folder' : 'app' };
 }
 
 function seedPaths() {
@@ -340,7 +376,9 @@ async function activate(uid) {
     return 'focused';
   }
   if (launch) {
-    const err = await shell.openPath(launch);
+    const item = uid.startsWith('p:') ? state.items.find((i) => i.id === uid.slice(2)) : null;
+    if (item && !item.aumid) { const id = storeAppId(item.path) || storeAppId(item.target); if (id) { item.aumid = id; persist(); } }
+    const err = await launchThing(launch, item && item.aumid);
     pollSoon(800);
     return err ? 'error' : 'launched';
   }
@@ -686,7 +724,7 @@ ipcMain.on('context', (_e, uid) => {
     tpl.push({ type: 'separator' });
   }
   if (launchPath) {
-    tpl.push({ label: g ? 'New window' : 'Open', click: () => shell.openPath(launchPath) });
+    tpl.push({ label: g ? 'New window' : 'Open', click: () => launchThing(launchPath, item && item.aumid) });
     const showPath = item && fs.existsSync(item.target) ? item.target : launchPath;
     tpl.push({ label: 'Show in folder', click: () => shell.showItemInFolder(showPath) });
     tpl.push({ type: 'separator' });
@@ -1016,6 +1054,7 @@ app.whenReady().then(async () => {
     for (const p of seedPaths()) if (fs.existsSync(p)) state.items.push(await makeItem(p));
     persist();
   }
+  for (const it of state.items) if (!it.aumid) { const id = storeAppId(it.target) || storeAppId(it.path); if (id) { it.aumid = id; persist(); } }
   // Give pinned apps that are still missing a logo (or only have the blank one) another try
   for (const it of state.items) {
     if (it.customIcon) continue;
@@ -1045,7 +1084,7 @@ app.whenReady().then(async () => {
     resolveDir: (uid) => { const it = itemFor(uid); return it && it.kind === 'folder' ? it.target : null; },
   });
   workspaces = createWorkspaces({
-    getState: () => state, persist, win32, keyOf, appName, safe, saveSettings,
+    getState: () => state, persist, win32, keyOf, appName, safe, saveSettings, launchThing,
     notify: (m) => island.send('workspace', m), broadcast: broadcastWorkspaces,
   });
   createOverlay();
