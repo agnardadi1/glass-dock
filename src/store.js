@@ -36,6 +36,7 @@ const DEFAULT_SETTINGS = {
   soundButton: true,
   workspacesInDock: true,
   settingsButton: true,
+  liftMenus: true,
   badges: true,
   stacks: true,
   gameMode: true,

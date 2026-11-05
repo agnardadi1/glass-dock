@@ -438,6 +438,23 @@ async function ghostRestore(win, key, uid) {
   await playGhost({ dir: 'restore', from, to, icon: iconForKey(key), title: info.title });
 }
 
+// Start, Quick Settings and notifications open where the hidden Windows taskbar would be, which is
+// under the dock. Nudge them up so they sit just above it. They slide in, so check a few times.
+function liftFlyout(hwnd) {
+  if (!state.settings.replaceTaskbar || state.settings.liftMenus === false || !restRect || !shown) return;
+  const tries = [0, 40, 110, 220, 380, 600];
+  for (const ms of tries) setTimeout(() => safe('lift menu', () => {
+    const r = win32.rect(hwnd);
+    if (!r || r.left <= -30000) return;
+    const d = targetDisplay();
+    const bar = screen.dipToScreenRect(null, { x: restRect.x, y: restRect.y, width: restRect.width, height: restRect.height });
+    const gap = Math.round(10 * d.scaleFactor);
+    const overlapsSideways = r.left < bar.x + bar.width && r.right > bar.x;
+    if (!overlapsSideways || r.bottom <= bar.y - gap + 1) return;
+    win32.moveTo(hwnd, r.left, r.top - (r.bottom - (bar.y - gap)));
+  }), ms);
+}
+
 // Start, Quick Settings and the notification panel close as soon as the dock is clicked.
 // Remember which one was open, so clicking its tile again closes it instead of reopening it.
 let openFlyout = null;
@@ -462,6 +479,7 @@ function onWinEvent(event, hwnd, addr) {
       return;
     }
     openFlyout = flyoutKind(info);
+    if (openFlyout) liftFlyout(hwnd);
     pollSoon(40);
     return;
   }
