@@ -72,7 +72,7 @@ function build(info) {
   $('hotkeys').addEventListener('change', (e) => save({ hotkeys: e.target.checked }));
   $('gameIsland').innerHTML = [['stats', 'GPU temp + time'], ['hide', 'Hide it'], ['normal', 'Show everything']].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
   $('gameIsland').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) save({ gameIsland: b.dataset.v }); });
-  for (const k of ['replaceTaskbar', 'minimizeToDock', 'media', 'soundButton', 'settingsButton', 'startButton', 'badges', 'stacks', 'gameMode']) $(k).addEventListener('change', (e) => save({ [k]: e.target.checked }));
+  for (const k of ['replaceTaskbar', 'minimizeToDock', 'media', 'soundButton', 'settingsButton', 'startButton', 'gameEdgeReveal', 'badges', 'stacks', 'gameMode']) $(k).addEventListener('change', (e) => save({ [k]: e.target.checked }));
   $('hideSeg').innerHTML = HIDE.map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
   $('hideSeg').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) save({ autoHide: b.dataset.v }); });
   // island
@@ -132,7 +132,7 @@ function sync() {
   $('mag').disabled = !s.magOn;
   $('magOn').checked = s.magOn;
   $('hotkeys').checked = s.hotkeys;
-  for (const k of ['replaceTaskbar', 'minimizeToDock', 'media', 'soundButton', 'settingsButton', 'startButton', 'badges', 'stacks', 'gameMode']) $(k).checked = !!s[k];
+  for (const k of ['replaceTaskbar', 'minimizeToDock', 'media', 'soundButton', 'settingsButton', 'startButton', 'gameEdgeReveal', 'badges', 'stacks', 'gameMode']) $(k).checked = !!s[k];
   $('hideSeg').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === s.autoHide));
   $('hideHint').textContent = HIDE_HINTS[s.autoHide] || '';
   $('gameIsland').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === (s.gameIsland || 'stats')));

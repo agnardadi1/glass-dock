@@ -629,7 +629,8 @@ function visibilityTickNow() {
   else if (s.autoHide === 'fullscreen') wantHide = fullscreen;
 
   // Pushing the mouse to the bottom edge brings it back. In full-screen games it needs a short hold.
-  const edgeOk = atEdge && (!(fullscreen || gameActive) || now - edgeSince > 350);
+  // In a game the dock stays away until you Alt+Tab out or close it (unless you allow the edge reveal)
+  const edgeOk = gameActive && !s.gameEdgeReveal ? false : atEdge && (!(fullscreen || gameActive) || now - edgeSince > 350);
   if ((alive(soundWin) && soundWin.isVisible()) || (stacks && stacks.isOpen())) revealUntil = now + 600; // keep the dock up while a panel is open
   if (edgeOk || capturing) revealUntil = now + (s.autoHide === 'always' || s.autoHide === 'smart' ? 650 : 900);
   if (wantHide && now < revealUntil) wantHide = false;

@@ -34,7 +34,7 @@ In **Settings → Workspaces** you can rename a workspace, pick its icon, snap e
 
 **Folder stacks.** Click **Downloads**, or any folder you pinned, to see its newest files above the dock. Click a file to open it, drag it straight into another app, or right-click it to show it in its folder.
 
-**Game mode.** When a game is in front (anything full screen, or anything from Steam, Epic, Riot, GOG, Xbox, EA, Ubisoft or a "Games" folder), the dock gets out of the way and the island shrinks to a quiet pill with your GPU temperature, GPU load and the time. Volume changes still show. Hold the mouse at the bottom edge to bring the dock back. Change it in **Settings → Behaviour → Game mode**.
+**Game mode.** When a game is in front (anything full screen, or anything from Steam, Epic, Riot, GOG, Xbox, EA, Ubisoft or a "Games" folder), the dock gets out of the way and the island shrinks to a quiet pill with your GPU temperature, GPU load and the time. Volume changes still show. The dock stays hidden until you Alt + Tab out or close the game (you can let the bottom edge bring it back in settings). Change it in **Settings → Behaviour → Game mode**.
 
 **Island hover options (0.6).** Hovering the quiet island shows your choice of clock, weather, PC stats, resume music, quick launch or clipboard history.
 

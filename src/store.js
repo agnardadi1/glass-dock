@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS = {
   stacks: true,
   gameMode: true,
   gameIsland: 'stats',      // 'stats' | 'hide' | 'normal'
+  gameEdgeReveal: false,    // pushing the mouse to the bottom edge shows the dock during games
   look: DEFAULT_LOOK,
   island: DEFAULT_ISLAND,
 };
