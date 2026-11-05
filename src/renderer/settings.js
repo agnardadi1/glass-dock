@@ -270,3 +270,106 @@ api.updateState().then(showUpdate);
 api.onUpdateState(showUpdate);
 $('updCheck').addEventListener('click', async () => { showUpdate({ ...(await api.updateState()), status: 'checking', message: 'Checking for updates…' }); api.updateCheck(); });
 $('updInstall').addEventListener('click', () => api.updateInstall());
+
+
+// ---------- private workspaces ----------
+let pv = { hasPassword: false, unlocked: false, list: null, shortcut: 'Alt+Shift+0' };
+const pvTimers = {};
+async function loadPv() { pv = await api.pvStatus(); renderPv(); }
+function pvField(id, label, type = 'password') { return `<label class="row" for="${id}">${label} <input id="${id}" type="${type}" autocomplete="off"></label>`; }
+function renderPv() {
+  const card = $('pvCard'), box = $('pvList');
+  if (!card) return;
+  const head = '<span class="label">Private workspaces</span>';
+  if (!pv.hasPassword) {
+    card.innerHTML = `${head}<p class="hint">Hidden from the dock, menus and island, stored encrypted, and opened with a password and a shortcut (<kbd>${escH(pv.shortcut)}</kbd>). Pressing the shortcut again closes the windows it opened. Set a password to start.</p>
+      ${pvField('pvNew', 'Password')}${pvField('pvNew2', 'Type it again')}
+      <div class="btns"><button type="button" class="btn-s primary" id="pvSet">Set password</button></div><p class="hint" id="pvMsg"></p>`;
+    box.innerHTML = '';
+    return;
+  }
+  if (!pv.unlocked) {
+    card.innerHTML = `${head}<p class="hint">Locked. Press <kbd>${escH(pv.shortcut)}</kbd> anywhere to open one, or unlock here to change them.</p>
+      ${pvField('pvPw', 'Password')}
+      <div class="btns"><button type="button" class="btn-s primary" id="pvUnlock">Unlock</button><button type="button" class="btn-s danger" id="pvWipe">Forgot it? Delete all private workspaces</button></div><p class="hint" id="pvMsg"></p>`;
+    box.innerHTML = '';
+    return;
+  }
+  card.innerHTML = `${head}<p class="hint">Unlocked. It locks itself again after 5 minutes, or when you open one.</p>
+    <div class="btns"><button type="button" class="btn-s primary" id="pvNewWs">New private workspace from open windows</button><button type="button" class="btn-s" id="pvLockNow">Lock</button></div>
+    <label class="row" for="pvKey">Shortcut <input id="pvKey" type="text" value="${escH(pv.shortcut)}" autocomplete="off" style="width:140px"></label>
+    ${pvField('pvChange', 'New password')}
+    <div class="btns"><button type="button" class="btn-s" id="pvChangeBtn">Change password</button></div><p class="hint" id="pvMsg"></p>`;
+  const opt = (v, l, cur) => `<option value="${escH(v)}"${v === cur ? ' selected' : ''}>${escH(l)}</option>`;
+  box.innerHTML = (pv.list || []).map((w) => `<div class="card" data-pv="${w.id}">
+    <div class="ws-head"><input class="emoji-in" data-f="icon" value="${escH(w.icon)}" maxlength="4" aria-label="Icon"><input data-f="name" type="text" value="${escH(w.name)}" aria-label="Name"></div>
+    <div class="btns"><button type="button" class="btn-s primary" data-act="open">Open it now</button><button type="button" class="btn-s" data-act="capture">Update with open windows</button><button type="button" class="btn-s danger" data-act="del">Delete</button></div>
+    <span class="label">Windows</span>
+    <div class="wsapps">${(w.apps || []).map((a, j) => `<div class="wsapp" data-j="${j}"><div class="nm"><b>${escH(a.name)}</b><small>${escH(a.title)}</small></div>
+      <select data-f="zone" aria-label="Position">${ZONE_LABELS.map(([v, l]) => opt(v, l, a.zone || '')).join('')}</select><span></span>
+      <button type="button" class="x" data-act="rm" aria-label="Remove">×</button></div>`).join('') || '<p class="hint">No windows yet.</p>'}</div>
+    <label class="row">Open the web pages in a private browser window <input type="checkbox" class="switch" data-f="privateBrowsing"${w.privateBrowsing !== false ? ' checked' : ''}></label>
+    <p class="hint">Needs Brave, Chrome, Edge or Firefox in the windows above. Pages then stay out of your history.</p>
+    <label class="row">Minimise other windows <input type="checkbox" class="switch" data-f="minimizeOthers"${w.minimizeOthers !== false ? ' checked' : ''}></label>
+    <label class="row">The shortcut also closes windows that were already open <input type="checkbox" class="switch" data-f="closeAll"${w.closeAll ? ' checked' : ''}></label>
+    <span class="label">Web pages to open</span>
+    <textarea data-f="urls" placeholder="https://… (one per line)">${escH((w.urls || []).join('\n'))}</textarea>
+  </div>`).join('');
+}
+const pvMsg = (t) => { const m = $('pvMsg'); if (m) m.textContent = t; };
+const pvFrom = (el) => { const c = el.closest('[data-pv]'); return c && (pv.list || []).find((w) => w.id === c.dataset.pv); };
+function pvPush(w, now) { clearTimeout(pvTimers[w.id]); const go = async () => { pv.list = await api.pvUpdate(w); }; if (now) go(); else pvTimers[w.id] = setTimeout(go, 500); }
+
+$('pvCard').addEventListener('click', async (e) => {
+  const id = e.target.id;
+  if (id === 'pvSet') {
+    if ($('pvNew').value !== $('pvNew2').value) return pvMsg('The two passwords are different.');
+    const r = await api.pvSetPassword({ pw: $('pvNew').value });
+    if (!r.ok) return pvMsg(r.error);
+    loadPv();
+  }
+  if (id === 'pvUnlock') { const r = await api.pvUnlock($('pvPw').value); if (!r.ok) return pvMsg('Wrong password.'); loadPv(); }
+  if (id === 'pvWipe') {
+    if (e.target.dataset.sure) { await api.pvRemoveAll(); loadPv(); }
+    else { e.target.dataset.sure = '1'; e.target.textContent = 'Click again to delete them all'; }
+  }
+  if (id === 'pvNewWs') { pv.list = await api.pvCreate(); renderPv(); }
+  if (id === 'pvLockNow') { await api.pvLock(); loadPv(); }
+  if (id === 'pvChangeBtn') { const r = await api.pvSetPassword({ pw: $('pvChange').value }); pvMsg(r.ok ? 'Password changed.' : r.error); if (r.ok) $('pvChange').value = ''; }
+});
+$('pvCard').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (e.target.id === 'pvPw') $('pvUnlock').click();
+  if (e.target.id === 'pvNew2') $('pvSet').click();
+});
+$('pvCard').addEventListener('change', async (e) => {
+  if (e.target.id !== 'pvKey') return;
+  const r = await api.pvShortcut(e.target.value);
+  pvMsg(r.ok ? 'Shortcut saved.' : r.error);
+  if (r.ok) pv.shortcut = e.target.value.trim();
+});
+$('pvList').addEventListener('input', (e) => {
+  const w = pvFrom(e.target); if (!w) return;
+  const f = e.target.dataset.f;
+  if (f === 'name' || f === 'icon') { w[f] = e.target.value; pvPush(w); }
+  if (f === 'urls') { w.urls = e.target.value.split(/\s*\n\s*/).map((x) => x.trim()).filter(Boolean); pvPush(w); }
+});
+$('pvList').addEventListener('change', (e) => {
+  const w = pvFrom(e.target); if (!w) return;
+  const f = e.target.dataset.f;
+  if (f === 'zone') { w.apps[+e.target.closest('.wsapp').dataset.j].zone = e.target.value; pvPush(w, true); }
+  if (['privateBrowsing', 'minimizeOthers', 'closeAll'].includes(f)) { w[f] = e.target.checked; pvPush(w, true); }
+});
+$('pvList').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const w = pvFrom(b); if (!w) return;
+  const act = b.dataset.act;
+  if (act === 'open') { await api.pvOpenNow(w.id); loadPv(); }
+  if (act === 'capture') { pv.list = await api.pvCapture(w.id); renderPv(); }
+  if (act === 'rm') { w.apps.splice(+b.closest('.wsapp').dataset.j, 1); pvPush(w, true); renderPv(); }
+  if (act === 'del') {
+    if (b.dataset.sure) { pv.list = await api.pvDelete(w.id); renderPv(); }
+    else { b.dataset.sure = '1'; b.textContent = 'Click again to delete'; }
+  }
+});
+loadPv();

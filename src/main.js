@@ -13,6 +13,7 @@ const createIsland = require('./island');
 const createWorkspaces = require('./workspaces');
 const createStacks = require('./stacks');
 const createUpdater = require('./updater');
+const createPrivate = require('./private');
 
 if (!app.requestSingleInstanceLock()) { app.quit(); process.exit(0); }
 
@@ -39,6 +40,7 @@ let island = null;
 let workspaces = null;
 let stacks = null;
 let updater = null;
+let privateWs = null;
 const media = new Media((m) => {
   if (dock && !dock.isDestroyed()) dock.webContents.send('media', m);
   if (island) island.send('media', m);
@@ -1019,6 +1021,14 @@ function saveSettings(patch) {
 }
 
 ipcMain.handle('save-settings', (_e, s) => saveSettings(s));
+ipcMain.handle('pv-shortcut', (_e, accel) => {
+  const a = String(accel || '').trim();
+  if (!/^((Ctrl|Alt|Shift|Super)\+)+[A-Z0-9]$|^((Ctrl|Alt|Shift|Super)\+)+F([1-9]|1[0-2])$/i.test(a)) return { ok: false, error: 'Use something like Alt+Shift+0.' };
+  const ok = privateWs.registerShortcut(a);
+  if (!ok) { privateWs.registerShortcut(state.settings.privateShortcut || 'Alt+Shift+0'); return { ok: false, error: 'Windows or another app is already using that shortcut.' }; }
+  saveSettings({ privateShortcut: a });
+  return { ok: true };
+});
 // Quick launch favourites for the island: pick apps, shortcuts or folders
 ipcMain.handle('island-launch-add', async (_e, folder) => {
   const res = await dialog.showOpenDialog(alive(settingsWin) ? settingsWin : undefined, {
@@ -1054,6 +1064,7 @@ ipcMain.handle('set-login', (_e, on) => {
 // ---------- keyboard shortcuts ----------
 function registerHotkeys() {
   globalShortcut.unregisterAll();
+  if (privateWs) privateWs.registerShortcut(state.settings.privateShortcut || 'Alt+Shift+0'); // always on, even with other shortcuts off
   if (!state.settings.hotkeys) return;
   for (let n = 1; n <= 9; n++) {
     globalShortcut.register(`Alt+${n}`, () => {
@@ -1118,6 +1129,8 @@ app.whenReady().then(async () => {
     getState: () => state, persist, win32, keyOf, appName, safe, saveSettings, launchThing,
     notify: (m) => island.send('workspace', m), broadcast: broadcastWorkspaces,
   });
+  privateWs = createPrivate({ getState: () => state, persist, workspaces, webPrefs, safe, newId: uidId });
+  registerHotkeys();
   createOverlay();
   createTray();
   registerHotkeys();

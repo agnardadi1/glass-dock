@@ -2,6 +2,7 @@
 // then bring the whole set back with one click: open what's missing, move every window into place,
 // minimise everything else and close the previous workspace's apps.
 const { screen, shell, ipcMain } = require('electron');
+const { spawn } = require('child_process');
 const path = require('path');
 
 const ZONES = {
@@ -70,44 +71,63 @@ module.exports = function createWorkspaces(ctx) {
     return pinned ? pinned.path : a.exe;
   }
 
-  async function activate(id) {
-    const ws = wsList().find((w) => w.id === id);
-    if (!ws || busy) return;
+  // Browsers' private-window switches, for workspaces that open their pages privately
+  const PRIVATE_FLAG = { 'brave.exe': '--incognito', 'chrome.exe': '--incognito', 'msedge.exe': '--inprivate', 'firefox.exe': '--private-window' };
+  let privateOpen = null; // { addrs: Set } windows a private workspace opened, so they can be closed again
+
+  function closeTracked(addrs) {
+    for (const w of appWindows()) if (addrs.has(w.addr)) win32.close(w.hwnd);
+  }
+
+  // The engine behind every workspace switch. opts.quiet: no island message, not remembered as "active".
+  async function run(ws, opts = {}) {
+    if (!ws || busy) return null;
     busy = true;
     const prevId = getState().activeWorkspace;
-    notify({ kind: 'ws', name: ws.name, icon: ws.icon, phase: 'start', count: ws.apps.length });
+    if (!opts.quiet) notify({ kind: 'ws', name: ws.name, icon: ws.icon, phase: 'start', count: ws.apps.length });
     try {
-      if (ws.look) saveSettings({ look: ws.look });
+      if (ws.look && !opts.quiet) saveSettings({ look: ws.look });
       let wins = appWindows();
+      const before = new Set(wins.map((w) => w.addr));
       const wanted = new Set(ws.apps.map((a) => a.key));
+
+      // Leaving a private workspace: close the windows it opened
+      if (privateOpen && !opts.quiet) { closeTracked(privateOpen.addrs); privateOpen = null; await sleep(300); wins = appWindows(); }
 
       // Close the previous workspace's apps that this one doesn't use
       const prev = wsList().find((w) => w.id === prevId);
-      if (prev && prev.id !== ws.id && ws.closeOld !== false) {
+      if (!opts.quiet && prev && prev.id !== ws.id && ws.closeOld !== false) {
         const closeKeys = new Set(prev.apps.map((a) => a.key).filter((k) => !wanted.has(k)));
         for (const w of wins) if (closeKeys.has(keyOf(w.exe))) win32.close(w.hwnd);
       }
 
-      // Match each saved app to an open window (same title first), launch the ones that are missing
+      // A browser that opens this workspace's pages in a private window always gets a fresh window
+      const urls = (ws.urls || []).filter((u) => /^https?:\/\//i.test(u));
+      const privBrowser = ws.privateBrowsing && urls.length ? ws.apps.find((a) => PRIVATE_FLAG[a.key]) : null;
+
       const used = new Set();
       const placed = [];
       const pending = [];
       const launched = new Set();
       const pick = (a, list) => {
-        const same = list.filter((w) => keyOf(w.exe) === a.key && !used.has(w.addr));
+        const same = list.filter((w) => keyOf(w.exe) === a.key && !used.has(w.addr) && !(a.fresh && before.has(w.addr)));
         return same.find((w) => w.title === a.title) || same[0] || null;
       };
-      for (const a of ws.apps) {
-        const w = pick(a, wins);
+      const apps = ws.apps.map((a) => ({ ...a, fresh: a === privBrowser }));
+      for (const a of apps) {
+        const w = a.fresh ? null : pick(a, wins);
         if (w) { used.add(w.addr); placed.push([a, w]); continue; }
         pending.push(a);
-        if (!launched.has(a.key) || /\\(chrome|msedge|brave|firefox|code|explorer)\.exe$/i.test(a.exe)) {
+        if (a.fresh) {
+          spawn(a.exe, [PRIVATE_FLAG[a.key], ...urls], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
+          launched.add(a.key);
+        } else if (!launched.has(a.key) || /\\(chrome|msedge|brave|firefox|code|explorer)\.exe$/i.test(a.exe)) {
           launched.add(a.key);
           const pinned = getState().items.find((i) => i.key === a.key);
           Promise.resolve(launchThing(launchPathFor(a), pinned && pinned.aumid)).catch(() => {});
         }
       }
-      for (const url of ws.urls || []) if (/^https?:\/\//i.test(url)) shell.openExternal(url).catch(() => {});
+      if (!privBrowser) for (const url of urls) shell.openExternal(url).catch(() => {});
 
       for (const [a, w] of placed) safe('workspace', () => { const t = targetRect(a); win32.place(w.hwnd, t.rect, t.maximize); });
 
@@ -135,13 +155,32 @@ module.exports = function createWorkspaces(ctx) {
       // Bring the workspace's windows to the front, keeping their saved stacking order
       for (const [, w] of placed) safe('workspace', () => win32.raise(w.hwnd));
 
-      getState().activeWorkspace = ws.id;
-      persist();
-      broadcast();
-      notify({ kind: 'ws', name: ws.name, icon: ws.icon, phase: 'done', missing: pending.map((a) => a.name) });
+      if (!opts.quiet) {
+        getState().activeWorkspace = ws.id;
+        persist();
+        broadcast();
+        notify({ kind: 'ws', name: ws.name, icon: ws.icon, phase: 'done', missing: pending.map((a) => a.name) });
+      }
+      // Windows this run opened (not ones that were already open): what a private workspace closes again
+      return { used, opened: new Set([...used].filter((a) => !before.has(a))) };
     } finally {
       busy = false;
     }
+  }
+
+  async function activate(id) {
+    return run(wsList().find((w) => w.id === id));
+  }
+  async function runPrivate(ws) {
+    const r = await run(ws, { quiet: true });
+    if (r) privateOpen = { addrs: ws.closeAll ? r.used : r.opened };
+    return r;
+  }
+  function closePrivate() {
+    if (!privateOpen) return false;
+    closeTracked(privateOpen.addrs);
+    privateOpen = null;
+    return true;
   }
 
   function create(name) {
@@ -201,5 +240,5 @@ module.exports = function createWorkspaces(ctx) {
     persist(); broadcast();
   });
 
-  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES) };
+  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES), capture, runPrivate, closePrivate, isPrivateOpen: () => !!privateOpen };
 };
