@@ -650,6 +650,8 @@ function visibilityTickNow() {
   // In a game the dock stays away until you Alt+Tab out or close it (unless you allow the edge reveal)
   const edgeOk = gameActive && !s.gameEdgeReveal ? false : atEdge && (!(fullscreen || gameActive) || now - edgeSince > 350);
   if ((alive(soundWin) && soundWin.isVisible()) || (stacks && stacks.isOpen())) revealUntil = now + 600; // keep the dock up while a panel is open
+  // ...and the whole time the settings window is open (not minimised), so you can see your changes
+  if (alive(settingsWin) && settingsWin.isVisible() && !settingsWin.isMinimized()) revealUntil = now + 600;
   if (edgeOk || capturing) revealUntil = now + (s.autoHide === 'always' || s.autoHide === 'smart' ? 650 : 900);
   if (wantHide && now < revealUntil) wantHide = false;
   setShown(!wantHide, wantHide && (fullscreen || gameActive));

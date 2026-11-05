@@ -1,7 +1,7 @@
 {
   "name": "glass-dock",
   "productName": "Glass Dock",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "A Mac-style dock for Windows",
   "main": "src/main.js",
   "author": "Agnar",
