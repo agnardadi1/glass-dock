@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock stack</title>
+  <style>
+    :root {
+      --panel: rgba(246,248,251,.97); --hover: rgba(30,40,60,.07); --fg: #1d2330; --muted: #5d6578; --line: rgba(30,40,60,.12); --accent: #2f6fe0;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --panel: rgba(30,33,43,.97); --hover: rgba(255,255,255,.07); --fg: #eef1f7; --muted: #a2aabb; --line: rgba(255,255,255,.1); --accent: #6ea0ff; color-scheme: dark; }
+    }
+    [hidden] { display: none !important; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; font: 12px var(--font); color: var(--fg); }
+    .panel {
+      position: absolute; inset: 0 0 6px; padding: 12px 14px; display: grid; grid-template-rows: auto 1fr auto; gap: 8px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.28);
+      transform-origin: bottom center; animation: rise .22s cubic-bezier(.2,.9,.3,1.15);
+    }
+    @keyframes rise { from { opacity: 0; transform: translateY(14px) scale(.96); } }
+    header { display: flex; align-items: baseline; gap: 8px; }
+    header b { font-size: 14px; }
+    header span { color: var(--muted); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, 100px); gap: 6px; justify-content: center; align-content: start; }
+    .file {
+      width: 100px; height: 120px; display: grid; justify-items: center; align-content: start; gap: 4px; padding: 6px 4px;
+      border: 0; border-radius: 10px; background: none; color: inherit; font: inherit; cursor: pointer;
+      animation: fly .3s cubic-bezier(.2,.9,.3,1.2) both;
+    }
+    @keyframes fly { from { opacity: 0; transform: translateY(24px) scale(.8); } }
+    .file:hover, .file:focus-visible { background: var(--hover); outline: none; }
+    .file img, .file .ph { width: 56px; height: 56px; object-fit: contain; border-radius: 6px; }
+    .file .ph { display: grid; place-items: center; background: var(--hover); font-weight: 700; color: var(--muted); }
+    .name { width: 100%; text-align: center; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+    .when { color: var(--muted); font-size: 10.5px; }
+    footer { display: flex; justify-content: space-between; align-items: center; }
+    footer span { color: var(--muted); }
+    .link { border: 0; background: none; color: var(--accent); font: 600 12px var(--font); cursor: pointer; padding: 4px 0; }
+    .empty { color: var(--muted); text-align: center; padding: 24px 0; }
+    @media (prefers-reduced-motion: reduce) { .panel, .file { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <header><b id="title"></b><span id="count"></span></header>
+    <div class="grid" id="grid"></div>
+    <footer><span>Drag a file out to use it anywhere</span><button class="link" id="openFolder">Open in File Explorer</button></footer>
+  </div>
+  <script src="stack.js"></script>
+</body>
+</html>

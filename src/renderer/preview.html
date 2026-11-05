@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock previews</title>
+  <style>
+    :root {
+      --panel: rgba(246,248,251,.96); --card: rgba(255,255,255,.9); --fg: #1d2330; --muted: #5d6578; --line: rgba(30,40,60,.12); --accent: #2f6fe0;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --panel: rgba(30,33,43,.96); --card: rgba(48,52,64,.9); --fg: #eef1f7; --muted: #a2aabb; --line: rgba(255,255,255,.1); --accent: #6ea0ff; color-scheme: dark; }
+    }
+    [hidden] { display: none !important; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; font: 12px var(--font); color: var(--fg); }
+    .strip {
+      position: absolute; inset: 0; padding: 10px; display: flex; gap: 8px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      animation: pop .16s cubic-bezier(.2,.8,.3,1);
+    }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px); } }
+    .win {
+      position: relative; width: 232px; flex: none; display: grid; grid-template-rows: auto 1fr; gap: 6px;
+      padding: 8px; border-radius: 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+    }
+    .win:hover { background: var(--card); box-shadow: inset 0 0 0 1px var(--line); }
+    .top { display: grid; grid-template-columns: 16px 1fr 20px; align-items: center; gap: 6px; min-width: 0; }
+    .top img { width: 16px; height: 16px; object-fit: contain; }
+    .top span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+    .x { width: 20px; height: 20px; border-radius: 50%; border: 0; background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; opacity: 0; }
+    .win:hover .x { opacity: 1; }
+    .x:hover { background: #e5484d; color: #fff; }
+    .x svg { width: 12px; height: 12px; }
+    .shot { border-radius: 6px; background: rgba(0,0,0,.18) center / contain no-repeat; display: grid; place-items: center; min-height: 0; }
+    .shot img { width: 44px; height: 44px; object-fit: contain; opacity: .8; }
+    .shot small { position: absolute; bottom: 14px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="strip" id="strip"></div>
+  <script src="preview.js"></script>
+</body>
+</html>

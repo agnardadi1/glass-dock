@@ -1,0 +1,60 @@
+{
+  "name": "glass-dock",
+  "productName": "Glass Dock",
+  "version": "1.0.0",
+  "description": "A Mac-style dock for Windows",
+  "main": "src/main.js",
+  "author": "Agnar",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win nsis",
+    "setup-updates": "node scripts/setup-updates.js",
+    "release": "electron-builder --win nsis --publish always"
+  },
+  "dependencies": {
+    "electron-updater": "^6.3.9",
+    "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.agnar.glassdock",
+    "productName": "Glass Dock",
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": true,
+      "createDesktopShortcut": false,
+      "shortcutName": "Glass Dock",
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "agnardadi1",
+        "repo": "glass-dock",
+        "releaseType": "release"
+      }
+    ],
+    "npmRebuild": false
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agnardadi1/glass-dock.git"
+  }
+}

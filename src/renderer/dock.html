@@ -1,0 +1,35 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock</title>
+  <link rel="stylesheet" href="dock.css">
+</head>
+<body>
+  <div class="dock-wrap" id="wrap">
+    <nav class="dock" id="dock" aria-label="Dock">
+      <div class="sep" id="sep"></div>
+      <div class="player-wrap" id="playerWrap" hidden>
+      <div class="art-card" id="artCard"></div>
+      <div class="player" id="player">
+        <button class="cover" id="pCover" aria-label="Go to the app that's playing"><span class="badge" id="pBadge"></span></button>
+        <div class="info">
+          <button class="p-src" id="pSrc" aria-label="Switch to another app that's playing"></button>
+          <span class="p-title" id="pTitle"></span>
+          <span class="p-artist" id="pArtist"></span>
+        </div>
+        <div class="ctrls">
+          <button id="pPrev" aria-label="Previous"></button>
+          <button id="pPlay" aria-label="Pause"></button>
+          <button id="pNext" aria-label="Next"></button>
+        </div>
+        <span class="prog" id="pProg"><i></i></span>
+      </div>
+      </div>
+      <div class="marker" id="marker" hidden></div>
+    </nav>
+  </div>
+  <script src="dock.js"></script>
+</body>
+</html>

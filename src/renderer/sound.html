@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Sound</title>
+  <style>
+    :root {
+      --panel: rgba(248,249,252,.97); --fg: #1d2330; --muted: #5d6578; --line: rgba(30,40,60,.12);
+      --hover: rgba(30,40,60,.06); --accent: #2f6fe0; --on-accent: #fff;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --panel: rgba(32,35,45,.97); --fg: #eef1f7; --muted: #a2aabb; --line: rgba(255,255,255,.1); --hover: rgba(255,255,255,.06); --accent: #6ea0ff; --on-accent: #10131a; color-scheme: dark; }
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { margin: 0; background: transparent; overflow: hidden; user-select: none; font: 13px/1.4 var(--font); color: var(--fg); }
+    .panel {
+      margin: 0 6px 6px; padding: 14px; display: grid; gap: 12px;
+      background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.28);
+      animation: pop .16s cubic-bezier(.2,.8,.3,1);
+    }
+    @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    .vol { display: grid; grid-template-columns: auto 1fr 3.2em; align-items: center; gap: 10px; }
+    .vol output { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .round { width: 32px; height: 32px; border-radius: 50%; border: 0; display: grid; place-items: center; background: var(--hover); color: var(--fg); cursor: pointer; }
+    .round:hover { background: var(--line); }
+    .round.off { background: #e5484d; color: #fff; }
+    .round svg { width: 18px; height: 18px; }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    .list { display: grid; gap: 2px; }
+    .dev {
+      display: grid; grid-template-columns: 18px 1fr; align-items: center; gap: 8px; width: 100%;
+      padding: 7px 8px; border: 0; border-radius: 8px; background: none; color: var(--fg);
+      font: inherit; text-align: left; cursor: pointer;
+    }
+    .dev:hover { background: var(--hover); }
+    .dev span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dev svg { width: 16px; height: 16px; color: var(--accent); visibility: hidden; }
+    .dev.on { font-weight: 600; }
+    .dev.on svg { visibility: visible; }
+    .empty { color: var(--muted); padding: 4px 8px; }
+    hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+    .link { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font: 600 13px var(--font); cursor: pointer; }
+    .wait { color: var(--muted); padding: 6px 2px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <p class="wait" id="wait">Looking for sound devices…</p>
+    <div id="body" hidden style="display: grid; gap: 12px;">
+      <span class="label">Output</span>
+      <div class="vol">
+        <button class="round" id="mute" aria-label="Mute"></button>
+        <input type="range" id="vol" min="0" max="100" step="1" aria-label="Volume">
+        <output id="volOut"></output>
+      </div>
+      <div class="list" id="outs"></div>
+      <hr>
+      <span class="label">Input</span>
+      <div class="vol">
+        <button class="round" id="micMute" aria-label="Mute microphone"></button>
+        <input type="range" id="micVol" min="0" max="100" step="1" aria-label="Microphone volume">
+        <output id="micOut"></output>
+      </div>
+      <div class="list" id="ins"></div>
+      <hr>
+      <button class="link" id="more">Sound settings</button>
+    </div>
+  </div>
+  <script src="sound.js"></script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock island</title>
+  <style>
+    /* The island is always black, like the real one, whatever the Windows theme */
+    :root {
+      --ink: #f5f6f8; --dim: rgba(245,246,248,.58); --faint: rgba(255,255,255,.12);
+      --green: #30d158; --orange: #ff9f0a; --blue: #0a84ff; --red: #ff453a;
+      --font: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      --spring: cubic-bezier(.34,1.32,.5,1);
+      color-scheme: dark;
+    }
+    [hidden] { display: none !important; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; font-family: var(--font); color: var(--ink); }
+
+    .stage { position: absolute; inset: 0; }
+    .island {
+      position: absolute; top: 0; left: 50%; transform: translateX(-50%);
+      width: 120px; height: 32px; border-radius: 16px;
+      background: #000; box-shadow: 0 8px 26px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.07);
+      overflow: hidden;
+      transition: width .5s var(--spring), height .5s var(--spring), border-radius .5s var(--spring), opacity .25s, transform .4s var(--spring);
+    }
+    .align-left .island { left: 0; transform: none; }
+    .align-right .island { left: auto; right: 0; transform: none; }
+    .island.gone { opacity: 0; transform: translateX(-50%) scale(.6); pointer-events: none; }
+    .align-left .island.gone, .align-right .island.gone { transform: scale(.6); }
+    .island.alarm { animation: alarm .9s var(--spring) infinite; }
+    @keyframes alarm { 0%, 100% { box-shadow: 0 8px 26px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.07); } 50% { box-shadow: 0 8px 26px rgba(0,0,0,.45), 0 0 0 3px var(--orange); } }
+
+    .content { position: absolute; inset: 0; padding: 0 12px; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+    .content.enter { animation: enter .3s ease .06s both; }
+    @keyframes enter { from { opacity: 0; filter: blur(6px); transform: scale(.96); } }
+    .card .content { padding: 14px 16px; justify-content: flex-start; }
+
+    .row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .grow { flex: 1; min-width: 0; }
+    .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .num { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .small { font-size: 12px; color: var(--dim); }
+    .label { font-size: 13px; font-weight: 600; }
+    .center { justify-content: center; }
+
+    .art { flex: none; border-radius: 6px; background: #2a2a2e center / cover no-repeat; }
+    .art.sm { width: 22px; height: 22px; }
+    .art.lg { width: 56px; height: 56px; border-radius: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.5); }
+
+    .bars { display: flex; align-items: center; gap: 2px; height: 16px; flex: none; }
+    .bars i { width: 3px; height: 30%; border-radius: 2px; background: var(--bar, var(--green)); transition: height .06s linear; }
+
+    .ic { width: 20px; height: 20px; flex: none; }
+    .ic.big { width: 26px; height: 26px; }
+
+    .btn { border: 0; background: var(--faint); color: var(--ink); font: 600 12px var(--font); padding: 6px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+    .btn:hover { background: rgba(255,255,255,.2); }
+    .btn.blue { background: var(--blue); }
+    .icon-btn { border: 0; background: none; color: var(--ink); width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+    .icon-btn:hover { background: var(--faint); }
+    .icon-btn svg { width: 20px; height: 20px; }
+    .icon-btn.lg svg { width: 26px; height: 26px; }
+    .ctrls { display: flex; justify-content: center; gap: 18px; }
+
+    .meter { flex: 1; height: 6px; border-radius: 3px; background: var(--faint); overflow: hidden; }
+    .meter i { display: block; height: 100%; background: var(--ink); border-radius: 3px; transition: width .12s; }
+
+    .scrub { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); }
+    .scrub input { flex: 1; height: 4px; accent-color: var(--ink); }
+
+    .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .clock-big { font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+
+    .shot { width: 100%; height: 118px; border-radius: 10px; background: #111 center / contain no-repeat; cursor: grab; flex: none; }
+
+    .dots { display: flex; gap: 4px; flex: none; }
+    .dots b { width: 7px; height: 7px; border-radius: 50%; }
+    .dots .mic { background: var(--orange); }
+    .dots .cam { background: var(--green); }
+
+    .measure { left: -9999px !important; transform: none !important; height: auto !important; visibility: hidden; transition: none; }
+    .measure .content { position: static; }
+    .bubble {
+      position: absolute; top: 0; width: 32px; height: 32px; border-radius: 50%; background: #000;
+      box-shadow: 0 8px 26px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.07);
+      display: grid; place-items: center; font-size: 10px; font-weight: 700; overflow: hidden;
+      transition: opacity .25s, transform .4s var(--spring), left .5s var(--spring);
+    }
+    .bubble.gone { opacity: 0; transform: scale(.4); }
+    .bubble .art { width: 100%; height: 100%; border-radius: 50%; }
+
+    .ring { transform: rotate(-90deg); }
+    .ring circle { fill: none; stroke-width: 3; }
+    .ring .bg { stroke: rgba(255,159,10,.25); }
+    .ring .fg { stroke: var(--orange); stroke-linecap: round; transition: stroke-dashoffset .3s linear; }
+
+    .spin { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--faint); border-top-color: var(--ink); animation: spin .8s linear infinite; flex: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* hover panels */
+    .tabs { position: absolute; left: 0; right: 0; bottom: 8px; display: flex; justify-content: center; gap: 4px; }
+    .tab { width: 30px; height: 24px; border: 0; border-radius: 8px; background: none; color: var(--dim); display: grid; place-items: center; cursor: pointer; }
+    .tab svg { width: 15px; height: 15px; }
+    .tab:hover { color: var(--ink); background: var(--faint); }
+    .tab[aria-pressed="true"] { color: var(--ink); background: rgba(255,255,255,.16); }
+    .wx { flex: none; }
+    .wx-mini { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; color: var(--dim); margin-left: 8px; font-variant-numeric: tabular-nums; }
+    .days { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .day { display: grid; justify-items: center; gap: 2px; background: rgba(255,255,255,.06); border-radius: 10px; padding: 5px 0; }
+    .stats { display: grid; gap: 7px; }
+    .stat { display: grid; grid-template-columns: 44px 1fr 112px; align-items: center; gap: 10px; }
+    .stat .num { text-align: right; }
+    .play-big { background: var(--ink); color: #000; width: 42px; height: 42px; }
+    .play-big:hover { background: #fff; }
+    .launch { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 4px; }
+    .app { border: 0; background: none; color: var(--ink); display: grid; justify-items: center; gap: 4px; padding: 6px 2px; border-radius: 12px; cursor: pointer; min-width: 0; font: 500 11px var(--font); }
+    .app:hover { background: var(--faint); }
+    .app img, .app b { width: 34px; height: 34px; object-fit: contain; }
+    .app b { display: grid; place-items: center; background: var(--faint); border-radius: 9px; font-size: 16px; }
+    .app span { max-width: 100%; }
+    .clips { display: grid; gap: 3px; }
+    .clip { border: 0; background: rgba(255,255,255,.06); color: var(--ink); text-align: left; padding: 6px 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; min-width: 0; font: 13px var(--font); height: 30px; }
+    .clip:hover { background: rgba(255,255,255,.14); }
+    .clip img { height: 20px; border-radius: 3px; }
+    .clip .ell { min-width: 0; flex: 1; }
+
+    @media (prefers-reduced-motion: reduce) { .island, .bubble { transition: opacity .2s; } .island.alarm { animation: none; } .content.enter { animation: none; } }
+  </style>
+</head>
+<body>
+  <div class="stage" id="stage">
+    <div class="island gone" id="island"><div class="content" id="content"></div></div>
+    <div class="bubble gone" id="bubble"></div>
+    <div class="island card measure" id="measure" aria-hidden="true"></div>
+  </div>
+  <script src="island.js"></script>
+</body>
+</html>

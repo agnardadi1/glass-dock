@@ -1,0 +1,88 @@
+// The bridge between the dock / settings / overlay pages and the main process.
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+const on = (channel) => (cb) => ipcRenderer.on(channel, (_e, data) => cb(data));
+
+contextBridge.exposeInMainWorld('dockApi', {
+  // dock
+  getState: () => ipcRenderer.invoke('get-state'),
+  onDock: on('dock'),
+  onSettings: on('settings'),
+  onVisible: on('visible'),
+  onMedia: on('media'),
+  onCatch: on('catch'),
+  activate: (uid) => ipcRenderer.invoke('activate', uid),
+  context: (uid) => ipcRenderer.send('context', uid),
+  dockMenu: () => ipcRenderer.send('dock-menu'),
+  drop: (payload) => ipcRenderer.invoke('drop', payload),
+  reorder: (uid, index) => ipcRenderer.invoke('reorder', { uid, index }),
+  trash: (paths) => ipcRenderer.invoke('trash', paths),
+  openSystem: (which) => ipcRenderer.send('open-system', which),
+  media: (cmd) => ipcRenderer.send('media', cmd),
+  mediaFocus: (app) => ipcRenderer.send('media-focus', app),
+  // sound
+  onSound: on('sound'),
+  soundOpen: (rect) => ipcRenderer.send('sound-open', rect),
+  soundCmd: (cmd) => ipcRenderer.send('sound-cmd', cmd),
+  soundSize: (h) => ipcRenderer.send('sound-size', h),
+  soundSettings: () => ipcRenderer.send('sound-settings'),
+  barRect: (rect) => ipcRenderer.send('bar-rect', rect),
+  pathFor: (file) => { try { return webUtils.getPathForFile(file); } catch { return ''; } },
+  // settings window
+  getSettingsInfo: () => ipcRenderer.invoke('settings-info'),
+  saveSettings: (s) => ipcRenderer.invoke('save-settings', s),
+  setLogin: (on) => ipcRenderer.invoke('set-login', on),
+  // dynamic island
+  islandRect: (r) => ipcRenderer.send('island-rect', r),
+  onShot: on('shot'),
+  onDownloads: on('downloads'),
+  onDownloadDone: on('download-done'),
+  islandShotSave: () => ipcRenderer.invoke('island-shot-save'),
+  islandShotDrag: () => ipcRenderer.send('island-shot-drag'),
+  islandOpen: (p) => ipcRenderer.send('island-open', p),
+  islandReveal: (p) => ipcRenderer.send('island-reveal', p),
+  onWeather: on('weather'),
+  onStats: on('stats'),
+  onClips: on('clips'),
+  islandStats: (want) => ipcRenderer.send('island-stats', want),
+  islandClip: (id) => ipcRenderer.send('island-clip', id),
+  islandLaunch: (p) => ipcRenderer.send('island-launch', p),
+  islandResume: () => ipcRenderer.send('island-resume'),
+  islandLaunchAdd: (folder) => ipcRenderer.invoke('island-launch-add', folder),
+  // workspaces
+  onWorkspaces: on('workspaces'),
+  onWorkspaceNote: on('workspace'),
+  onGame: on('game'),
+  onSettingsTab: on('settings-tab'),
+  wsList: () => ipcRenderer.invoke('ws-list'),
+  wsCreate: (name) => ipcRenderer.invoke('ws-create', name),
+  wsCapture: (id) => ipcRenderer.invoke('ws-capture', id),
+  wsActivate: (id) => ipcRenderer.invoke('ws-activate', id),
+  wsDelete: (id) => ipcRenderer.invoke('ws-delete', id),
+  wsUpdate: (ws) => ipcRenderer.invoke('ws-update', ws),
+  wsMenu: (id) => ipcRenderer.send('ws-menu', id),
+  // window previews
+  previewOpen: (key, rect) => ipcRenderer.send('preview-open', { key, rect }),
+  previewClose: () => ipcRenderer.send('preview-close'),
+  onPreview: on('preview'),
+  previewFocus: (addr) => ipcRenderer.send('preview-focus', addr),
+  previewCloseWindow: (addr) => ipcRenderer.send('preview-close-window', addr),
+  previewSize: (n) => ipcRenderer.send('preview-size', n),
+  // folder stacks
+  stackOpen: (o) => ipcRenderer.send('stack-open', o),
+  onStack: on('stack'),
+  stackFile: (p) => ipcRenderer.send('stack-file', p),
+  stackReveal: (p) => ipcRenderer.send('stack-reveal', p),
+  stackFolder: () => ipcRenderer.send('stack-folder'),
+  stackDrag: (p) => ipcRenderer.send('stack-drag', p),
+  stackClose: () => ipcRenderer.send('stack-close'),
+  // updates
+  onUpdate: on('update'),
+  onUpdateState: on('update-state'),
+  updateState: () => ipcRenderer.invoke('update-state'),
+  updateCheck: () => ipcRenderer.invoke('update-check'),
+  updateInstall: () => ipcRenderer.send('update-install'),
+  // minimise animation overlay
+  onGhost: on('ghost'),
+  ghostDone: () => ipcRenderer.send('ghost-done'),
+});

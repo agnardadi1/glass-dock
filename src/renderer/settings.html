@@ -1,0 +1,207 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock settings</title>
+  <style>
+    :root {
+      --bg: #f4f6fa; --card: #ffffff; --fg: #1d2330; --muted: #5d6578; --line: #dfe3ea; --accent: #2f6fe0; --on-accent: #fff;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #16181f; --card: #1f222b; --fg: #eef1f7; --muted: #a2aabb; --line: #30343f; --accent: #6ea0ff; --on-accent: #10131a; color-scheme: dark; }
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font); }
+    main { padding: 16px; display: grid; gap: 14px; }
+    h1 { font-size: 20px; margin: 4px 0 0; }
+    .tabs { display: flex; gap: 4px; padding: 3px; background: var(--line); border-radius: 8px; }
+    .tabs button { flex: 1; border: 0; background: none; padding: 6px; border-radius: 6px; font: 600 13px var(--font); color: var(--muted); cursor: pointer; }
+    .tabs button[aria-selected="true"] { background: var(--card); color: var(--fg); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+    .pane { display: grid; gap: 12px; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; display: grid; gap: 14px; }
+    .label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+    .group { display: grid; gap: 8px; }
+    .row { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 12px; }
+    .row input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+    output { font: 12px ui-monospace, Consolas, monospace; color: var(--muted); }
+    .hint { margin: 0; font-size: 12px; color: var(--muted); }
+    .seg { display: flex; flex-wrap: wrap; gap: 4px; }
+    .seg button { flex: 1; min-width: 64px; padding: 6px 4px; font: 500 12px var(--font); color: var(--fg); background: none; border: 1px solid var(--line); border-radius: 6px; cursor: pointer; }
+    .seg button:hover { border-color: var(--accent); }
+    .seg button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 700; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .sw, input[type=color] { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); padding: 0; cursor: pointer; background-clip: padding-box; }
+    .sw[aria-pressed="true"], input[type=color].on { box-shadow: 0 0 0 2px var(--accent); border-color: var(--accent); }
+    input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+    input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+    .switch { appearance: none; width: 36px; height: 20px; border-radius: 10px; background: var(--line); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+    .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+    .switch:checked { background: var(--accent); }
+    .switch:checked::after { transform: translateX(16px); }
+    .switch:disabled { opacity: .4; cursor: not-allowed; }
+    select { font: 13px var(--font); padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); max-width: 220px; }
+    .link { justify-self: start; background: none; border: 0; padding: 0; color: var(--accent); font: 600 13px var(--font); cursor: pointer; }
+    .sub { display: grid; gap: 10px; padding: 10px 12px; border-radius: 8px; background: var(--bg); }
+    input[type=text] { font: 13px var(--font); padding: 6px 9px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); width: 190px; }
+    .btn-s { font: 600 12px var(--font); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+    .btn-s:hover { border-color: var(--accent); }
+    .favs { display: grid; gap: 4px; }
+    .fav { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; }
+    .fav img { width: 22px; height: 22px; object-fit: contain; }
+    .fav span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fav button { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+    .fav button:hover { color: #e5484d; background: var(--line); }
+    .btn-s.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+    .btn-s.danger { color: #e5484d; }
+    .ws-head { display: grid; grid-template-columns: 52px 1fr; gap: 8px; }
+    .ws-head input { width: 100%; font-size: 15px; font-weight: 600; }
+    .ws-head .emoji-in { text-align: center; font-size: 20px; padding: 2px; }
+    .btns { display: flex; flex-wrap: wrap; gap: 6px; }
+    .wsapps { display: grid; gap: 6px; }
+    .wsapp { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px; align-items: center; }
+    .wsapp .nm { min-width: 0; }
+    .wsapp .nm b { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wsapp .nm small { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wsapp select { max-width: 120px; font-size: 12px; padding: 4px 6px; }
+    .wsapp .x { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 16px; padding: 2px 6px; border-radius: 4px; }
+    .wsapp .x:hover { color: #e5484d; background: var(--line); }
+    textarea { font: 12px ui-monospace, Consolas, monospace; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); width: 100%; min-height: 54px; resize: vertical; }
+    .active-badge { font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; }
+    kbd { font: 12px ui-monospace, Consolas, monospace; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Glass Dock</h1>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" data-p="look" aria-selected="true">Appearance</button>
+    <button type="button" role="tab" data-p="behave" aria-selected="false">Behaviour</button>
+    <button type="button" role="tab" data-p="island" aria-selected="false">Island</button>
+    <button type="button" role="tab" data-p="workspaces" aria-selected="false">Workspaces</button>
+  </div>
+
+  <div class="pane" id="paneLook">
+    <div class="card">
+      <div class="group"><span class="label">Presets</span><div class="seg" id="presets"></div></div>
+      <div class="group"><span class="label">Colour</span><div class="swatches" id="tints"></div></div>
+      <label class="row" for="alpha">Opacity <output id="alphaOut"></output><input id="alpha" type="range" min="0.1" max="0.95" step="0.05"></label>
+    </div>
+    <div class="card">
+      <div class="group"><span class="label">Glow</span><div class="seg" id="glowSeg"></div></div>
+      <p class="hint" id="glowHint" hidden>The glow pulses with whatever your PC is playing, strongest on the bass. It listens to the sound output only; nothing is recorded or sent anywhere.</p>
+      <label class="row" for="glowCol">Glow colour <input id="glowCol" type="color"></label>
+      <label class="row" for="glowArt">Use the album cover's colour <input id="glowArt" class="switch" type="checkbox"></label>
+      <label class="row" for="glowSize">Glow strength <output id="glowOut"></output><input id="glowSize" type="range" min="4" max="60" step="2"></label>
+    </div>
+    <div class="card">
+      <div class="group"><span class="label">Dock shape</span><div class="seg" id="shapeSeg"></div></div>
+      <div class="group"><span class="label">Icon shape</span><div class="seg" id="iconSeg"></div></div>
+      <label class="row" for="tiles">Put app icons on tiles <input id="tiles" class="switch" type="checkbox"></label>
+      <div class="group"><span class="label">Open-app indicator</span><div class="seg" id="indSeg"></div></div>
+      <button type="button" class="link" id="reset">Reset appearance</button>
+    </div>
+  </div>
+
+  <div class="pane" id="paneWorkspaces" hidden>
+    <div class="card">
+      <p class="hint" style="font-size:13px">Arrange your windows the way you like them, then save them as a workspace. One click (or <kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>1</kbd>…<kbd>9</kbd>) brings that whole setup back: missing apps open, every window moves to its spot, and everything else is minimised.</p>
+      <div class="row" style="grid-template-columns:auto 1fr"><button type="button" class="btn-s primary" id="wsNew">New workspace from open windows</button></div>
+      <label class="row" for="wsInDock">Show workspaces on the dock <input id="wsInDock" class="switch" type="checkbox"></label>
+    </div>
+    <div id="wsList" class="pane"></div>
+  </div>
+
+  <div class="pane" id="paneIsland" hidden>
+    <div class="card">
+      <label class="row" for="iOn">Show the island <input id="iOn" class="switch" type="checkbox"></label>
+      <p class="hint">A black pill at the top of the screen that grows to show music, volume, screenshots, downloads and a timer.</p>
+    </div>
+    <div class="card">
+      <label class="row" for="iDisplay">Screen <select id="iDisplay"></select></label>
+      <div class="group"><span class="label">Position</span><div class="seg" id="iAlign"></div></div>
+      <label class="row" for="iTop">Distance from the top <output id="iTopOut"></output><input id="iTop" type="range" min="0" max="80" step="1"></label>
+      <label class="row" for="iScale">Size <output id="iScaleOut"></output><input id="iScale" type="range" min="0.8" max="1.5" step="0.05"></label>
+      <div class="group"><span class="label">When nothing is happening</span><div class="seg" id="iIdle"></div></div>
+      <label class="row" for="iFull">Hide over full-screen apps <input id="iFull" class="switch" type="checkbox"></label>
+    </div>
+    <div class="card">
+      <span class="label">What it shows</span>
+      <label class="row" for="iMusic">Now playing, with bars that move to the music <input id="iMusic" class="switch" type="checkbox"></label>
+      <label class="row" for="iVolume">Volume changes and switching speakers or headset <input id="iVolume" class="switch" type="checkbox"></label>
+      <label class="row" for="iPrivacy">A dot while an app uses your mic (orange) or camera (green) <input id="iPrivacy" class="switch" type="checkbox"></label>
+      <label class="row" for="iShots">Screenshots and copied images, ready to save or drag <input id="iShots" class="switch" type="checkbox"></label>
+      <label class="row" for="iDownloads">Downloads in progress and finished <input id="iDownloads" class="switch" type="checkbox"></label>
+    </div>
+    <div class="card">
+      <span class="label">When you hover the quiet island</span>
+      <p class="hint">Pick what it shows. With more than one, small tabs let you switch, and it remembers the last one you used.</p>
+      <label class="row" for="pClock">Clock and date <input id="pClock" class="switch" type="checkbox"></label>
+      <label class="row" for="pWeather">Weather, with a 4-day forecast <input id="pWeather" class="switch" type="checkbox"></label>
+      <div class="sub" id="weatherOpts">
+        <label class="row" for="iPlace">Town <input id="iPlace" type="text" placeholder="Found automatically" autocomplete="off"></label>
+        <div class="group"><div class="seg" id="iUnits"></div></div>
+      </div>
+      <label class="row" for="pStats">PC stats: CPU, GPU, temperature, memory <input id="pStats" class="switch" type="checkbox"></label>
+      <label class="row" for="pResume">Resume music (your last song, ready to play) <input id="pResume" class="switch" type="checkbox"></label>
+      <label class="row" for="pClipboard">Clipboard history (kept until the dock closes, never saved) <input id="pClipboard" class="switch" type="checkbox"></label>
+      <label class="row" for="iTimer">Timer <input id="iTimer" class="switch" type="checkbox"></label>
+      <label class="row" for="pLaunch">Quick launch favourites <input id="pLaunch" class="switch" type="checkbox"></label>
+      <div class="sub" id="launchOpts">
+        <div class="favs" id="favs"></div>
+        <div class="row" style="grid-template-columns:auto auto 1fr"><button type="button" class="btn-s" id="addApp">Add apps…</button><button type="button" class="btn-s" id="addFolder">Add a folder…</button></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pane" id="paneBehave" hidden>
+    <div class="card">
+      <label class="row" for="size">Icon size <output id="sizeOut"></output><input id="size" type="range" min="32" max="72" step="1"></label>
+      <label class="row" for="mag">Magnification <output id="magOut"></output><input id="mag" type="range" min="1.1" max="2.4" step="0.1"></label>
+      <label class="row" for="magOn">Magnify on hover <input id="magOn" class="switch" type="checkbox"></label>
+    </div>
+    <div class="card">
+      <label class="row" for="replaceTaskbar">Replace the Windows taskbar <input id="replaceTaskbar" class="switch" type="checkbox"></label>
+      <p class="hint">Hides the Windows taskbar and adds Start, Wi-Fi/sound and clock tiles to the dock. Turning this off, or quitting the dock, brings the taskbar back. If it ever stays hidden, restart "Windows Explorer" in Task Manager (<kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Esc</kbd>).</p>
+      <label class="row" for="badges">Unread counts and attention alerts on app icons <input id="badges" class="switch" type="checkbox"></label>
+      <p class="hint">Shows the unread number apps put in their title (like "(3) WhatsApp"), and gives an orange glow and nudge when an app flashes for attention, like the Windows taskbar does.</p>
+      <label class="row" for="stacks">Open Downloads and pinned folders as a stack <input id="stacks" class="switch" type="checkbox"></label>
+      <label class="row" for="previews">Show window previews when you hover an open app <input id="previews" class="switch" type="checkbox"></label>
+      <label class="row" for="minimizeToDock">Minimise windows into the dock <input id="minimizeToDock" class="switch" type="checkbox"></label>
+      <p class="hint">Windows shrink into their dock icon instead of flying to the taskbar.</p>
+      <label class="row" for="media">Show the music player <input id="media" class="switch" type="checkbox"></label>
+      <label class="row" for="soundButton">Show the sound button <input id="soundButton" class="switch" type="checkbox"></label>
+      <p class="hint">Click it to change the volume or switch between speakers, headphones and microphones. Scroll on it to change the volume.</p>
+      <p class="hint">Shows what Spotify, your browser or any other player is playing, with play/pause and skip.</p>
+    </div>
+    <div class="card">
+      <div class="group"><span class="label">Auto-hide</span><div class="seg" id="hideSeg"></div></div>
+      <p class="hint" id="hideHint"></p>
+    </div>
+    <div class="card">
+      <label class="row" for="gameMode">Game mode <input id="gameMode" class="switch" type="checkbox"></label>
+      <p class="hint">When a full-screen app or a game from Steam, Epic, Riot, GOG, Xbox, EA, Ubisoft or a Games folder is in front, the dock gets out of the way and the island goes quiet. Hold the mouse at the bottom edge to bring the dock back.</p>
+      <div class="group"><span class="label">Island while gaming</span><div class="seg" id="gameIsland"></div></div>
+    </div>
+    <div class="card">
+      <label class="row" for="hotkeys">Keyboard shortcuts <input id="hotkeys" class="switch" type="checkbox"></label>
+      <p class="hint"><kbd>Alt</kbd> + <kbd>1</kbd>…<kbd>9</kbd> opens or switches to the app in that spot on the dock.</p>
+    </div>
+    <div class="card">
+      <span class="label">Updates</span>
+      <div class="row" style="grid-template-columns:1fr auto"><span id="updVersion"></span><span class="btns"><button type="button" class="btn-s" id="updCheck">Check now</button><button type="button" class="btn-s primary" id="updInstall" hidden>Restart to update</button></span></div>
+      <p class="hint" id="updMsg"></p>
+    </div>
+    <div class="card">
+      <label class="row" for="display">Show the dock on <select id="display"></select></label>
+      <label class="row" for="login">Start with Windows <input id="login" class="switch" type="checkbox"></label>
+      <p class="hint" id="loginHint"></p>
+    </div>
+  </div>
+</main>
+<script src="settings.js"></script>
+</body>
+</html>
