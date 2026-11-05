@@ -145,6 +145,8 @@ html, body { margin: 0; height: 100%; background: transparent; overflow: hidden;
 .item.attn .dot { background: #ff9f0a; opacity: 1; }
 @keyframes nudge { 0%, 70%, 100% { transform: translateY(0); } 78% { transform: translateY(-22%); } 86% { transform: translateY(0); } 92% { transform: translateY(-9%); } }
 
+.icon.gear { background: linear-gradient(#8a93a6, #5c6375); }
+
 /* Workspace tiles */
 .icon.ws .emoji { font-size: calc(var(--s, var(--base)) * .48); line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.25)); }
 

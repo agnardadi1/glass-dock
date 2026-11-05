@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   media: true,
   soundButton: true,
   workspacesInDock: true,
+  settingsButton: true,
   badges: true,
   stacks: true,
   gameMode: true,

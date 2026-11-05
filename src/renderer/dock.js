@@ -18,6 +18,7 @@ const ICONS = {
   speaker: `<svg ${S}><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>`,
   speakerLow: `<svg ${S}><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg>`,
   speakerOff: `<svg ${S}><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m16 9 5 6M21 9l-5 6"/></svg>`,
+  gear: `<svg ${S}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`,
   quick: `<svg ${S}><path d="M3.5 9.5a12 12 0 0 1 17 0M6.5 12.5a7.5 7.5 0 0 1 11 0M9.5 15.5a3 3 0 0 1 5 0"/><circle cx="12" cy="19" r=".6" fill="#fff"/></svg>`,
   downloads: `<svg ${S}><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>`,
   trash: '<svg fill="none" stroke="#5a6274" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
@@ -91,6 +92,7 @@ const dlEl = sysTile('sys:downloads', 'Downloads', 'downloads', ICONS.downloads,
 dlEl.querySelector('.icon').style.background = 'linear-gradient(#8fc4ff,#4a8de6)';
 const trashEl = sysTile('sys:trash', 'Recycle Bin', 'trash', ICONS.trash, marker);
 trashEl.querySelector('.icon').style.background = 'linear-gradient(rgba(255,255,255,.65),rgba(205,212,222,.65))';
+const gearEl = sysTile('sys:settings', 'Dock settings', 'gear', ICONS.gear, marker);
 const sep2 = document.createElement('div');
 sep2.className = 'sep';
 dock.insertBefore(sep2, marker);
@@ -187,7 +189,7 @@ soundEl.addEventListener('wheel', (e) => {
 }, { passive: false });
 soundEl.querySelector('.icon').innerHTML = ICONS.speaker;
 
-const SYS_ACTIONS = { 'sys:downloads': 'downloads', 'sys:trash': 'trash', 'sys:start': 'start', 'sys:quick': 'quick', 'sys:clock': 'notify' };
+const SYS_ACTIONS = { 'sys:settings': 'settings', 'sys:downloads': 'downloads', 'sys:trash': 'trash', 'sys:start': 'start', 'sys:quick': 'quick', 'sys:clock': 'notify' };
 async function onClick(el) {
   const uid = el.dataset.uid;
   const stackOn = settings && settings.stacks !== false;
@@ -409,6 +411,7 @@ function applySettings(s) {
   const sys = !!s.replaceTaskbar;
   startEl.hidden = !sys; quickEl.hidden = !sys; clockEl.hidden = !sys;
   soundEl.hidden = !s.soundButton;
+  gearEl.hidden = s.settingsButton === false;
   sep2.hidden = !sys && !s.soundButton;
   playerWrap.hidden = !media || !s.media;
   renderWorkspaces();

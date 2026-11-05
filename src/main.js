@@ -799,6 +799,7 @@ ipcMain.handle('trash', async (_e, paths) => {
 
 const VK_WIN = 0x5B;
 ipcMain.on('open-system', (_e, which) => {
+  if (which === 'settings') { openSettings(); return; }
   if (which === 'downloads') shell.openPath(app.getPath('downloads'));
   if (which === 'trash') spawn('explorer.exe', ['shell:RecycleBinFolder'], { detached: true, stdio: 'ignore' }).unref();
   if (['start', 'quick', 'notify'].includes(which)) {
