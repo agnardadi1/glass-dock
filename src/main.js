@@ -438,23 +438,6 @@ async function ghostRestore(win, key, uid) {
   await playGhost({ dir: 'restore', from, to, icon: iconForKey(key), title: info.title });
 }
 
-// Start, Quick Settings and notifications open where the hidden Windows taskbar would be, which is
-// under the dock. Nudge them up so they sit just above it. They slide in, so check a few times.
-function liftFlyout(hwnd) {
-  if (!state.settings.replaceTaskbar || state.settings.liftMenus === false || !restRect || !shown) return;
-  const tries = [0, 40, 110, 220, 380, 600];
-  for (const ms of tries) setTimeout(() => safe('lift menu', () => {
-    const r = win32.rect(hwnd);
-    if (!r || r.left <= -30000) return;
-    const d = targetDisplay();
-    const bar = screen.dipToScreenRect(null, { x: restRect.x, y: restRect.y, width: restRect.width, height: restRect.height });
-    const gap = Math.round(10 * d.scaleFactor);
-    const overlapsSideways = r.left < bar.x + bar.width && r.right > bar.x;
-    if (!overlapsSideways || r.bottom <= bar.y - gap + 1) return;
-    win32.moveTo(hwnd, r.left, r.top - (r.bottom - (bar.y - gap)));
-  }), ms);
-}
-
 // Start, Quick Settings and the notification panel close as soon as the dock is clicked.
 // Remember which one was open, so clicking its tile again closes it instead of reopening it.
 let openFlyout = null;
@@ -479,7 +462,6 @@ function onWinEvent(event, hwnd, addr) {
       return;
     }
     openFlyout = flyoutKind(info);
-    if (openFlyout) liftFlyout(hwnd);
     pollSoon(40);
     return;
   }
@@ -803,11 +785,11 @@ ipcMain.handle('drop', async (_e, { paths, index, overUid }) => {
 
 ipcMain.handle('reorder', async (_e, { uid, index }) => {
   if (uid.startsWith('r:')) return pinRunning(uid.slice(2), index);
+  // index = how many pinned apps should come before it once it's moved
   const from = state.items.findIndex((i) => 'p:' + i.id === uid);
   if (from < 0) return;
   const [item] = state.items.splice(from, 1);
-  const to = from < index ? index - 1 : index;
-  state.items.splice(Math.max(0, Math.min(to, state.items.length)), 0, item);
+  state.items.splice(Math.max(0, Math.min(index, state.items.length)), 0, item);
   persist(); sendDock(true);
 });
 
@@ -904,7 +886,19 @@ ipcMain.on('bar-rect', (_e, r) => {
 
 // ---------- click-through: only the bar itself catches the mouse ----------
 function capturePoll() { safe('mouse', capturePollNow); }
+let dragLock = false; // while you drag an icon around, the dock keeps hold of the mouse
+ipcMain.on('dock-drag', (_e, on) => {
+  dragLock = !!on;
+  if (dragLock && alive(dock) && !capturing) { capturing = true; dock.setIgnoreMouseEvents(false); }
+});
+ipcMain.handle('remove-item', (_e, uid) => {
+  const it = itemFor(uid);
+  if (!it) return;
+  state.items = state.items.filter((x) => x !== it);
+  persist(); sendDock(true);
+});
 function capturePollNow() {
+  if (dragLock) return;
   if (!alive(dock) || !barRect || !shown || !dock.isVisible()) return;
   const c = screen.getCursorScreenPoint();
   const wb = dock.getBounds();

@@ -34,10 +34,10 @@ function makeEl(uid) {
   const el = document.createElement('button');
   el.className = 'item';
   el.dataset.uid = uid;
-  el.draggable = !uid.startsWith('sys:') && !uid.startsWith('ws:');
+  el.draggable = false; // arranging uses the live drag below; dropping files still works
   el.innerHTML = '<span class="tip"></span><span class="icon"></span><span class="dot"></span>';
   el.cur = 0;
-  el.addEventListener('click', () => onClick(el));
+  el.addEventListener('click', () => { if (el.justDragged) { el.justDragged = false; return; } onClick(el); });
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (uid.startsWith('ws:')) api.wsMenu(uid.slice(3));
@@ -357,15 +357,85 @@ function clearDrop() {
   dock.querySelectorAll('.drop-on').forEach((el) => el.classList.remove('drop-on'));
 }
 
-dock.addEventListener('dragstart', (e) => {
-  const el = e.target.closest('.item');
-  if (!el || el.dataset.uid.startsWith('sys:')) { e.preventDefault(); return; }
-  dragUid = el.dataset.uid;
-  dock.classList.add('dragging');
-  e.dataTransfer.setData('text/plain', dragUid);
-  e.dataTransfer.effectAllowed = 'move';
+// ---------- arranging icons: grab one and slide it, the others make room ----------
+let pd = null; // the icon being pressed / dragged
+const arrangeable = () => [...dock.querySelectorAll('.item[data-uid^="p:"], .item[data-uid^="r:"]')];
+dock.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  const el = e.target.closest('.item[data-uid^="p:"], .item[data-uid^="r:"]');
+  if (el) pd = { el, uid: el.dataset.uid, x0: e.clientX, y0: e.clientY, dragging: false };
 });
-dock.addEventListener('dragend', () => { dragUid = null; clearDrop(); });
+function beginArrange() {
+  pd.dragging = true;
+  api.dockDrag(true);
+  pd.wasMag = magOn; magOn = false; // icons settle to normal size so the slots stay put
+  const bs = baseSize();
+  pd.slot = bs + bs * 0.1;
+  pd.list = arrangeable();
+  pd.from = pd.list.indexOf(pd.el);
+  pd.others = pd.list.filter((x) => x !== pd.el);
+  pd.others.forEach((x) => { x.shift = 0; });
+  pd.index = pd.from;
+  dock.classList.add('arranging');
+  pd.el.classList.add('lifted');
+  // keep working out the gap every frame: the icons are still settling from the hover zoom
+  const tick = () => { if (!pd || !pd.dragging) return; if (pd.last) moveArrange(pd.last); requestAnimationFrame(tick); };
+  requestAnimationFrame(tick);
+}
+function moveArrange(e) {
+  const dx = e.clientX - pd.x0, dy = Math.min(0, e.clientY - pd.y0);
+  const removing = pd.uid.startsWith('p:') && dy < -baseSize() * 1.2;
+  pd.el.classList.toggle('removing', removing);
+  pd.el.style.transform = `translate(${dx}px, ${dy}px)`;
+  // which gap is the pointer over?
+  let t = 0;
+  for (const o of pd.others) {
+    const r = o.getBoundingClientRect();
+    if (e.clientX > r.left + r.width / 2 - o.shift) t++;
+  }
+  pd.index = t;
+  pd.removing = removing;
+  pd.others.forEach((o, k) => {
+    const finalIdx = k < t ? k : k + 1;
+    const nowIdx = pd.list.indexOf(o);
+    o.shift = removing ? (nowIdx > pd.from ? -pd.slot : 0) : (finalIdx - nowIdx) * pd.slot;
+    o.style.transform = o.shift ? `translateX(${o.shift}px)` : '';
+  });
+}
+async function endArrange() {
+  const { el, uid, others, index, removing } = pd;
+  dock.classList.remove('arranging');
+  el.classList.remove('lifted', 'removing');
+  magOn = pd.wasMag;
+  // put it in its new place straight away, so nothing jumps while the dock saves it
+  const all = [el, ...others];
+  all.forEach((x) => { x.style.transition = 'none'; x.style.transform = ''; x.shift = 0; });
+  if (removing) {
+    el.classList.add('poof');
+    setTimeout(() => api.removeItem(uid), 220);
+  } else {
+    const ref = others[index] || null;
+    if (ref) dock.insertBefore(el, ref);
+    else if (others.length) dock.insertBefore(el, others[others.length - 1].nextSibling);
+    const pinnedBefore = others.slice(0, index).filter((x) => x.dataset.uid.startsWith('p:')).length;
+    api.reorder(uid, pinnedBefore);
+  }
+  requestAnimationFrame(() => all.forEach((x) => { x.style.transition = ''; }));
+  el.justDragged = true;
+  setTimeout(() => { el.justDragged = false; }, 50);
+  api.dockDrag(false);
+}
+window.addEventListener('pointermove', (e) => {
+  if (!pd) return;
+  if (!pd.dragging) {
+    if (Math.hypot(e.clientX - pd.x0, e.clientY - pd.y0) < 6) return;
+    beginArrange();
+  }
+  pd.last = { clientX: e.clientX, clientY: e.clientY };
+  moveArrange(pd.last);
+});
+window.addEventListener('pointerup', () => { if (pd && pd.dragging) endArrange(); pd = null; });
+window.addEventListener('blur', () => { if (pd && pd.dragging) endArrange(); pd = null; });
 dock.addEventListener('dragover', (e) => {
   e.preventDefault();
   mouseX = e.clientX;
@@ -409,7 +479,7 @@ function applySettings(s) {
   dock.dataset.ind = L.ind;
   // Start / Quick Settings / clock appear when the dock replaces the taskbar
   const sys = !!s.replaceTaskbar;
-  startEl.hidden = !sys; quickEl.hidden = !sys; clockEl.hidden = !sys;
+  startEl.hidden = !sys || s.startButton !== true; quickEl.hidden = !sys; clockEl.hidden = !sys;
   soundEl.hidden = !s.soundButton;
   gearEl.hidden = s.settingsButton === false;
   sep2.hidden = !sys && !s.soundButton;

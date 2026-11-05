@@ -16,6 +16,8 @@ contextBridge.exposeInMainWorld('dockApi', {
   dockMenu: () => ipcRenderer.send('dock-menu'),
   drop: (payload) => ipcRenderer.invoke('drop', payload),
   reorder: (uid, index) => ipcRenderer.invoke('reorder', { uid, index }),
+  removeItem: (uid) => ipcRenderer.invoke('remove-item', uid),
+  dockDrag: (on) => ipcRenderer.send('dock-drag', on),
   trash: (paths) => ipcRenderer.invoke('trash', paths),
   openSystem: (which) => ipcRenderer.send('open-system', which),
   media: (cmd) => ipcRenderer.send('media', cmd),
