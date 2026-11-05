@@ -30,8 +30,6 @@ You can also run the **Release** workflow by hand from the Actions tab.
 
 In **Settings → Workspaces** you can rename a workspace, pick its icon, snap each window to a zone (halves, thirds, two-thirds, quarters, full screen), move it to the other screen, give the workspace its own dock look, and add web pages to open. Right-click an open app → **Add to workspace** adds it to one. Right-click a workspace tile to update it with the windows that are open now.
 
-**Window previews.** Hover an open app for a moment to see its windows. Click one to jump to it, or use **×** to close it.
-
 **Badges.** Apps that put an unread number in their title ("(3) WhatsApp", Gmail's "Inbox (12)") get a red count on their icon. Apps that flash for attention, like Discord on a new message, glow orange and give a little nudge until you open them. Before, those flashes only showed on the Windows taskbar.
 
 **Folder stacks.** Click **Downloads**, or any folder you pinned, to see its newest files above the dock. Click a file to open it, drag it straight into another app, or right-click it to show it in its folder.
@@ -45,7 +43,6 @@ In **Settings → Workspaces** you can rename a workspace, pick its icon, snap e
 | Do this | What happens |
 | --- | --- |
 | Click an app | Opens it, or switches to it. Click the app you're in to minimise it. |
-| Hover an open app | Window previews |
 | Right-click an app | Its windows, New window, Show in folder, Change icon, Add to workspace, Remove, Quit |
 | Click Downloads or a pinned folder | Folder stack |
 | Drag apps, shortcuts or folders onto the dock | Pins them |
@@ -65,7 +62,6 @@ Settings are saved in `%APPDATA%\glass-dock\dock.json`.
 ## Known limits
 
 - The glass doesn't blur the windows behind it (Windows can't blur behind a see-through shape like this).
-- Window previews are snapshots refreshed every second or two, not live video. Minimised windows show their app icon.
 - Badges only appear for apps that put a count in their window title, or that flash for attention.
 - GPU stats need an NVIDIA card (they come from its driver). There's no FPS counter.
 - A workspace can't restore browser tabs. List the pages you want under "Web pages to open".

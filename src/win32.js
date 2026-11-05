@@ -10,7 +10,7 @@ if (!isWin) {
     available: false,
     listWindows: () => [], foregroundInfo: () => null, windowInfo: () => null, clipboardSeq: () => 0,
     focus: noop, minimize: noop, close: noop, rect: () => null, place: noop, raise: noop,
-    registerShellHook: () => null, setForegroundRaw: noop,
+    registerShellHook: () => null, setForegroundRaw: noop, windowIcon: () => null,
     pressKeys: noop, showTaskbars: noop, taskbarAutoHide: () => false, setTaskbarAutoHide: noop,
     getMinAnimate: () => 1, setMinAnimate: noop, setWorkArea: noop,
     appbarSet: noop, appbarRemove: noop,
@@ -23,6 +23,60 @@ if (!isWin) {
   const kernel32 = koffi.load('kernel32.dll');
   const shell32 = koffi.load('shell32.dll');
   const dwmapi = koffi.load('dwmapi.dll');
+  const gdi32 = koffi.load('gdi32.dll');
+  koffi.struct('ICONINFO', { fIcon: 'int32_t', xHotspot: 'uint32_t', yHotspot: 'uint32_t', hbmMask: 'uintptr_t', hbmColor: 'uintptr_t' });
+  koffi.struct('BITMAP', { bmType: 'int32_t', bmWidth: 'int32_t', bmHeight: 'int32_t', bmWidthBytes: 'int32_t', bmPlanes: 'uint16_t', bmBitsPixel: 'uint16_t', bmBits: 'uintptr_t' });
+  const g = {
+    SendMessageTimeoutW: user32.func('intptr_t __stdcall SendMessageTimeoutW(HWND hwnd, uint32_t msg, uintptr_t w, intptr_t l, uint32_t flags, uint32_t timeout, _Out_ uintptr_t *result)'),
+    GetClassLongPtrW: user32.func('uintptr_t __stdcall GetClassLongPtrW(HWND hwnd, int index)'),
+    GetIconInfo: user32.func('bool __stdcall GetIconInfo(uintptr_t icon, _Out_ ICONINFO *info)'),
+    GetDC: user32.func('uintptr_t __stdcall GetDC(uintptr_t hwnd)'),
+    ReleaseDC: user32.func('int __stdcall ReleaseDC(uintptr_t hwnd, uintptr_t dc)'),
+    GetObjectW: gdi32.func('int __stdcall GetObjectW(uintptr_t h, int size, _Out_ BITMAP *bm)'),
+    GetDIBits: gdi32.func('int __stdcall GetDIBits(uintptr_t dc, uintptr_t bm, uint32_t start, uint32_t lines, void *bits, void *info, uint32_t usage)'),
+    DeleteObject: gdi32.func('bool __stdcall DeleteObject(uintptr_t h)'),
+  };
+  // Reads a bitmap as top-down 32-bit BGRA
+  function readBits(dc, hbm, w, h) {
+    const info = Buffer.alloc(40 + 8);
+    info.writeUInt32LE(40, 0); info.writeInt32LE(w, 4); info.writeInt32LE(-h, 8);
+    info.writeUInt16LE(1, 12); info.writeUInt16LE(32, 14);
+    const bits = Buffer.alloc(w * h * 4);
+    return g.GetDIBits(dc, hbm, 0, h, bits, info, 0) ? bits : null;
+  }
+  // The icon an open window shows in its title bar / Alt+Tab, as BGRA pixels
+  function windowIconNow(hwnd) {
+    let icon = 0;
+    for (const type of [1, 2, 0]) { // ICON_BIG, ICON_SMALL2, ICON_SMALL
+      const out = [0];
+      if (g.SendMessageTimeoutW(hwnd, 0x007F, type, 0, 0x0002, 150, out) && out[0]) { icon = out[0]; break; }
+    }
+    if (!icon) icon = g.GetClassLongPtrW(hwnd, -14) || g.GetClassLongPtrW(hwnd, -34); // GCLP_HICON, GCLP_HICONSM
+    if (!icon) return null;
+    const ii = {};
+    if (!g.GetIconInfo(icon, ii)) return null;
+    const dc = g.GetDC(0);
+    try {
+      if (!ii.hbmColor) return null;
+      const bm = {};
+      if (!g.GetObjectW(ii.hbmColor, koffi.sizeof('BITMAP'), bm)) return null;
+      const w = bm.bmWidth, h = bm.bmHeight;
+      if (w <= 0 || h <= 0 || w > 512 || h > 512) return null;
+      const px = readBits(dc, ii.hbmColor, w, h);
+      if (!px) return null;
+      let anyAlpha = false;
+      for (let i = 3; i < px.length; i += 4) if (px[i]) { anyAlpha = true; break; }
+      if (!anyAlpha && ii.hbmMask) { // old-style icon: transparency comes from the mask
+        const mask = readBits(dc, ii.hbmMask, w, h);
+        for (let i = 0; i < px.length; i += 4) px[i + 3] = mask && mask[i] ? 0 : 255;
+      }
+      return { width: w, height: h, bgra: px };
+    } finally {
+      g.ReleaseDC(0, dc);
+      if (ii.hbmColor) g.DeleteObject(ii.hbmColor);
+      if (ii.hbmMask) g.DeleteObject(ii.hbmMask);
+    }
+  }
 
   koffi.pointer('HWND', koffi.opaque());
   koffi.struct('RECT', { left: 'int32_t', top: 'int32_t', right: 'int32_t', bottom: 'int32_t' });
@@ -180,6 +234,7 @@ const hwndNum = (h) => (Buffer.isBuffer(h) ? h.readBigUInt64LE(0) : h ? koffi.ad
       } catch { return null; }
     },
     rect: rectOf,
+    windowIcon(hwnd) { try { return windowIconNow(hwnd); } catch { return null; } },
     focus(hwnd) {
       if (f.IsIconic(hwnd)) f.ShowWindowAsync(hwnd, SW_RESTORE);
       f.SetForegroundWindow(hwnd);

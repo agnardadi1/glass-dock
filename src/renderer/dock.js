@@ -36,21 +36,7 @@ function makeEl(uid) {
   el.draggable = !uid.startsWith('sys:') && !uid.startsWith('ws:');
   el.innerHTML = '<span class="tip"></span><span class="icon"></span><span class="dot"></span>';
   el.cur = 0;
-  el.addEventListener('click', () => { clearTimeout(el.pvTimer); api.previewClose(); onClick(el); });
-  if (uid.startsWith('p:') || uid.startsWith('r:')) {
-    // hover an open app for a moment to see its windows
-    el.addEventListener('mouseenter', () => {
-      clearTimeout(el.pvTimer);
-      const it = list.find((i) => i.uid === uid);
-      if (!it || !it.running || !it.key || dragUid || !(settings && settings.previews !== false)) return;
-      el.pvTimer = setTimeout(() => {
-        if (!el.matches(':hover')) return;
-        const r = el.querySelector('.icon').getBoundingClientRect();
-        api.previewOpen(it.key, { x: r.x, y: r.y, width: r.width, height: r.height });
-      }, 550);
-    });
-    el.addEventListener('mouseleave', () => clearTimeout(el.pvTimer));
-  }
+  el.addEventListener('click', () => onClick(el));
   el.addEventListener('contextmenu', (e) => {
     e.preventDefault(); e.stopPropagation();
     if (uid.startsWith('ws:')) api.wsMenu(uid.slice(3));

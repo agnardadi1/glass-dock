@@ -61,13 +61,6 @@ contextBridge.exposeInMainWorld('dockApi', {
   wsDelete: (id) => ipcRenderer.invoke('ws-delete', id),
   wsUpdate: (ws) => ipcRenderer.invoke('ws-update', ws),
   wsMenu: (id) => ipcRenderer.send('ws-menu', id),
-  // window previews
-  previewOpen: (key, rect) => ipcRenderer.send('preview-open', { key, rect }),
-  previewClose: () => ipcRenderer.send('preview-close'),
-  onPreview: on('preview'),
-  previewFocus: (addr) => ipcRenderer.send('preview-focus', addr),
-  previewCloseWindow: (addr) => ipcRenderer.send('preview-close-window', addr),
-  previewSize: (n) => ipcRenderer.send('preview-size', n),
   // folder stacks
   stackOpen: (o) => ipcRenderer.send('stack-open', o),
   onStack: on('stack'),

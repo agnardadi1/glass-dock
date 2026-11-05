@@ -10,7 +10,6 @@ const { Media } = require('./media');
 const { Sound } = require('./audio');
 const createIsland = require('./island');
 const createWorkspaces = require('./workspaces');
-const createPreviews = require('./previews');
 const createStacks = require('./stacks');
 const createUpdater = require('./updater');
 
@@ -37,7 +36,6 @@ let quitting = false;
 const iconCache = new Map();
 let island = null;
 let workspaces = null;
-let previews = null;
 let stacks = null;
 let updater = null;
 const media = new Media((m) => {
@@ -68,15 +66,69 @@ const alive = (w) => w && !w.isDestroyed();
 // One Windows feature failing must never take the whole dock down
 const safe = (label, fn) => { try { return fn(); } catch (e) { console.error(`[${label}]`, e && e.message ? e.message : e); return undefined; } };
 
-async function iconFor(p) {
+// Finding an app's logo, best source first:
+//  1. Windows' own large icon for the file
+//  2. the small file icon
+//  3. Microsoft Store apps: the logo files inside the app's package (Windows locks the .exe itself)
+//  4. (for open apps, later) the icon shown on the app's window
+const usable = (img) => img && !img.isEmpty() && !looksBlank(img);
+function looksBlank(img) {
+  // Some locked files come back as a fully transparent square
+  const { width, height } = img.getSize();
+  const px = img.resize({ width: 16, height: 16 }).toBitmap();
+  for (let i = 3; i < px.length; i += 4) if (px[i] > 16) return false;
+  return width > 0 && height > 0;
+}
+function storeAppLogo(file) {
+  const m = /^(.*\\WindowsApps\\[^\\]+)\\/i.exec(file || '');
+  if (!m) return null;
+  try {
+    const pkg = m[1];
+    const xml = fs.readFileSync(path.join(pkg, 'AppxManifest.xml'), 'utf8');
+    const ref = (/Square44x44Logo="([^"]+)"/.exec(xml) || /Square150x150Logo="([^"]+)"/.exec(xml) || /<Logo>([^<]+)<\/Logo>/.exec(xml) || [])[1];
+    if (!ref) return null;
+    const dir = path.join(pkg, path.dirname(ref));
+    const base = path.basename(ref, path.extname(ref)).toLowerCase();
+    let best = null, bestScore = -1;
+    for (const f of fs.readdirSync(dir)) {
+      const lf = f.toLowerCase();
+      if (!lf.startsWith(base) || !lf.endsWith('.png') || /contrast|lightunplated/.test(lf)) continue;
+      const size = +((/targetsize-(\d+)/.exec(lf) || [])[1] || 0) || Math.round(44 * (+((/scale-(\d+)/.exec(lf) || [])[1] || 100)) / 100);
+      const score = Math.min(size, 256) + (lf.includes('unplated') ? 300 : 0);
+      if (score > bestScore) { bestScore = score; best = path.join(dir, f); }
+    }
+    const img = best ? nativeImage.createFromPath(best) : null;
+    return usable(img) ? img : null;
+  } catch { return null; }
+}
+async function iconFor(p, extra = []) {
   const k = norm(p);
-  if (iconCache.has(k)) return iconCache.get(k);
+  if (iconCache.has(k) && iconCache.get(k)) return iconCache.get(k);
   let img = null;
-  try { img = await nativeImage.createThumbnailFromPath(p, { width: ICON_PX, height: ICON_PX }); } catch { /* fall back */ }
-  if (!img || img.isEmpty()) { try { img = await app.getFileIcon(p, { size: 'large' }); } catch { /* none */ } }
-  const url = img && !img.isEmpty() ? img.toDataURL() : null;
+  for (const src of [p, ...extra].filter(Boolean)) {
+    try { img = await nativeImage.createThumbnailFromPath(src, { width: ICON_PX, height: ICON_PX }); } catch { img = null; }
+    if (!usable(img)) { try { img = await app.getFileIcon(src, { size: 'large' }); } catch { img = null; } }
+    if (!usable(img)) img = storeAppLogo(src);
+    if (usable(img)) break;
+  }
+  const url = usable(img) ? img.resize({ width: ICON_PX, quality: 'best' }).toDataURL() : null;
   iconCache.set(k, url);
   return url;
+}
+// Last resort for an open app: the icon on its own window
+function iconFromWindow(hwnd) {
+  const ic = win32.windowIcon(hwnd);
+  if (!ic) return null;
+  const img = nativeImage.createFromBitmap(ic.bgra, { width: ic.width, height: ic.height });
+  return usable(img) ? img.resize({ width: ICON_PX, quality: 'best' }).toDataURL() : null;
+}
+// Shortcuts can name their own icon (IconLocation / IconFile), which is often the better logo
+function shortcutIcon(p) {
+  try {
+    if (/\.lnk$/i.test(p)) { const l = shell.readShortcutLink(p); return l.icon && fs.existsSync(l.icon) ? l.icon : null; }
+    if (/\.url$/i.test(p)) { const m = /^IconFile=(.+)$/mi.exec(fs.readFileSync(p, 'utf8')); return m && fs.existsSync(m[1].trim()) ? m[1].trim() : null; }
+  } catch { /* no icon */ }
+  return null;
 }
 
 // What a dropped/pinned path launches, and which running app it matches.
@@ -99,7 +151,9 @@ async function makeItem(p) {
   const { target, key } = resolve(p);
   let name = path.basename(p, ext) || p;
   if (ext.toLowerCase() === '.exe' && NAMES[key]) name = NAMES[key];
-  const icon = await iconFor(fs.existsSync(target) ? target : p);
+  const own = shortcutIcon(p);
+  const first = own || (fs.existsSync(target) ? target : p);
+  const icon = await iconFor(first, [target, p]);
   return { id: uidId(), name: prettify(name), path: p, target, key, icon, kind: isDir(target) ? 'folder' : 'app' };
 }
 
@@ -191,7 +245,19 @@ function pollRunningNow() {
       if (m) g.badge = Math.max(g.badge, +m[1]);
     }
     if (!unpinnedOrder.includes(key)) unpinnedOrder.push(key);
-    if (!iconCache.has(norm(g.exe))) iconFor(g.exe).then(() => sendDock(true));
+    if (!iconCache.has(norm(g.exe))) {
+      iconFor(g.exe).then((url) => {
+        if (!url) { // locked or icon-less file: use the app's window icon
+          const w = (windowsByKey.get(key) || g).windows[0];
+          const fromWin = w && safe('window icon', () => iconFromWindow(w.hwnd));
+          if (fromWin) iconCache.set(norm(g.exe), fromWin);
+        }
+        // pinned apps that never got a logo pick this one up too
+        const got = iconCache.get(norm(g.exe));
+        for (const it of state.items) if (it.key === key && !it.icon && !it.customIcon && got) { it.icon = got; persist(); }
+        sendDock(true);
+      });
+    }
   }
   const fg = wins.find((w) => w.foreground);
   if (fg) { lastAppFg = fg.addr; attention.delete(keyOf(fg.exe)); } // you looked at it
@@ -502,7 +568,7 @@ function visibilityTickNow() {
 
   // Pushing the mouse to the bottom edge brings it back. In full-screen games it needs a short hold.
   const edgeOk = atEdge && (!(fullscreen || gameActive) || now - edgeSince > 350);
-  if ((alive(soundWin) && soundWin.isVisible()) || (previews && previews.isOpen()) || (stacks && stacks.isOpen())) revealUntil = now + 600; // keep the dock up while a panel is open
+  if ((alive(soundWin) && soundWin.isVisible()) || (stacks && stacks.isOpen())) revealUntil = now + 600; // keep the dock up while a panel is open
   if (edgeOk || capturing) revealUntil = now + (s.autoHide === 'always' || s.autoHide === 'smart' ? 650 : 900);
   if (wantHide && now < revealUntil) wantHide = false;
   setShown(!wantHide, wantHide && (fullscreen || gameActive));
@@ -910,21 +976,17 @@ app.whenReady().then(async () => {
     for (const p of seedPaths()) if (fs.existsSync(p)) state.items.push(await makeItem(p));
     persist();
   }
+  // Give pinned apps that are still missing a logo another try with the newer logo sources
+  for (const it of state.items) {
+    if (it.icon || it.customIcon) continue;
+    it.icon = await iconFor(shortcutIcon(it.path) || it.target || it.path, [it.target, it.path]);
+    if (it.icon) persist();
+  }
   createDock();
   island = createIsland({
     getSettings: () => state.settings, win32, dockDisplay: targetDisplay, fullscreenOn, webPrefs, safe, media, isGame: () => gameActive,
   });
   island.start();
-  previews = createPreviews({
-    webPrefs, win32, safe, dockWin: () => (alive(dock) ? dock : null), restRect: () => restRect,
-    getGroup: (key) => { const g = windowsByKey.get(key); return g ? { ...g, name: appName(key) } : null; },
-    getIcon: iconForKey,
-    onFocus: async (w, key) => {
-      if (w.minimized && state.settings.minimizeToDock) await ghostRestore(w, key, uidForKey(key));
-      win32.focus(w.hwnd);
-      pollSoon(200);
-    },
-  });
   updater = createUpdater({
     notify: (m) => island.send('update', m),
     onChange: (st) => {
