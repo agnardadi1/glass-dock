@@ -23,6 +23,7 @@ if (!isWin) {
   const kernel32 = koffi.load('kernel32.dll');
   const shell32 = koffi.load('shell32.dll');
   const dwmapi = koffi.load('dwmapi.dll');
+  koffi.pointer('HWND', koffi.opaque()); // declared first: everything below uses it
   const gdi32 = koffi.load('gdi32.dll');
   koffi.struct('ICONINFO', { fIcon: 'int32_t', xHotspot: 'uint32_t', yHotspot: 'uint32_t', hbmMask: 'uintptr_t', hbmColor: 'uintptr_t' });
   koffi.struct('BITMAP', { bmType: 'int32_t', bmWidth: 'int32_t', bmHeight: 'int32_t', bmWidthBytes: 'int32_t', bmPlanes: 'uint16_t', bmBitsPixel: 'uint16_t', bmBits: 'uintptr_t' });
@@ -78,7 +79,6 @@ if (!isWin) {
     }
   }
 
-  koffi.pointer('HWND', koffi.opaque());
   koffi.struct('RECT', { left: 'int32_t', top: 'int32_t', right: 'int32_t', bottom: 'int32_t' });
   koffi.struct('APPBARDATA', { cbSize: 'uint32_t', hWnd: 'uintptr_t', uCallbackMessage: 'uint32_t', uEdge: 'uint32_t', rc: 'RECT', lParam: 'intptr_t' });
   koffi.proto('bool __stdcall EnumWindowsProc(HWND hwnd, intptr_t lParam)');

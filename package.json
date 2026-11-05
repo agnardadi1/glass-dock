@@ -1,7 +1,7 @@
 {
   "name": "glass-dock",
   "productName": "Glass Dock",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A Mac-style dock for Windows",
   "main": "src/main.js",
   "author": "Agnar",
@@ -10,7 +10,8 @@
     "start": "electron .",
     "build": "electron-builder --win nsis",
     "setup-updates": "node scripts/setup-updates.js",
-    "release": "electron-builder --win nsis --publish always"
+    "release": "electron-builder --win nsis --publish always",
+    "test": "node test/win32-load.test.js"
   },
   "dependencies": {
     "electron-updater": "^6.3.9",

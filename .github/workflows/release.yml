@@ -21,6 +21,8 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      - name: Check the Windows code loads and works on real Windows
+        run: node -e "const w = require('./src/win32.js'); if (!w.available) throw new Error('win32 not available'); const list = w.listWindows(); w.foregroundInfo(); w.getMinAnimate(); w.taskbarAutoHide(); console.log('win32 OK, windows seen:', list.length)"
       - name: Build installer and publish the release
         run: npx electron-builder --win nsis --publish always
         env:
