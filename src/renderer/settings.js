@@ -171,6 +171,14 @@ const ZONE_LABELS = [['', 'Where it was saved'], ['full', 'Full screen'], ['left
 let ws = { list: [], active: null, displays: [] };
 const escH = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
+const BROWSER_KEYS = ['brave.exe', 'chrome.exe', 'msedge.exe', 'firefox.exe'];
+// Page address under a browser window, so each window reopens on its own page
+const urlField = (a, j) => (BROWSER_KEYS.includes(a.key)
+  ? `<input class="wsurl" data-f="url" data-j="${j}" type="text" value="${escH(a.url || '')}" placeholder="Page for this window (https://…)" aria-label="Page for this ${escH(a.name)} window" spellcheck="false">`
+  : '');
+// "Update with open windows" reads the browsers' address bars, which takes a moment
+async function busyBtn(b, fn) { const t = b.textContent; b.disabled = true; b.textContent = 'Reading windows…'; try { return await fn(); } finally { if (b.isConnected) { b.disabled = false; b.textContent = t; } } }
+
 function wsCard(w, i) {
   const lookVal = !w.look ? 'keep' : 'saved';
   const opt = (v, l, cur) => `<option value="${escH(v)}"${v === cur ? ' selected' : ''}>${escH(l)}</option>`;
@@ -178,7 +186,7 @@ function wsCard(w, i) {
       <div class="nm"><b>${escH(a.name)}</b><small title="${escH(a.title)}">${escH(a.title)}</small></div>
       <select data-f="display" aria-label="Screen for ${escH(a.name)}">${ws.displays.map((d) => opt(d.id, d.label, String(a.display && a.display.id))).join('')}${ws.displays.some((d) => d.id === String(a.display && a.display.id)) ? '' : opt(String(a.display && a.display.id), (a.display && a.display.label) || 'Missing screen', String(a.display && a.display.id))}</select>
       <select data-f="zone" aria-label="Position for ${escH(a.name)}">${ZONE_LABELS.map(([v, l]) => opt(v, l, a.zone || '')).join('')}</select>
-      <button type="button" class="x" data-act="rm" aria-label="Remove ${escH(a.name)}">×</button></div>`).join('')
+      <button type="button" class="x" data-act="rm" aria-label="Remove ${escH(a.name)}">×</button></div>${urlField(a, j)}`).join('')
     : '<p class="hint">No windows yet. Arrange your windows and click "Update with open windows".</p>';
   return `<div class="card" data-id="${w.id}">
     <div class="ws-head"><input class="emoji-in" data-f="icon" value="${escH(w.icon)}" maxlength="4" aria-label="Icon"><input data-f="name" type="text" value="${escH(w.name)}" aria-label="Name"></div>
@@ -218,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {});
     const f = e.target.dataset.f;
     if (f === 'name' || f === 'icon') { w[f] = e.target.value; pushWs(w); }
     if (f === 'urls') { w.urls = e.target.value.split(/\s*\n\s*/).map((x) => x.trim()).filter(Boolean); pushWs(w); }
+    if (f === 'url') { w.apps[+e.target.dataset.j].url = e.target.value.trim(); pushWs(w); }
   });
   box.addEventListener('change', (e) => {
     const w = wsFrom(e.target); if (!w) return;
@@ -243,14 +252,14 @@ document.addEventListener('DOMContentLoaded', () => {});
     const w = wsFrom(b); if (!w) return;
     const act = b.dataset.act;
     if (act === 'go') { b.disabled = true; b.textContent = 'Switching…'; await api.wsActivate(w.id); loadWs(); }
-    if (act === 'capture') { await api.wsCapture(w.id); loadWs(); }
+    if (act === 'capture') { await busyBtn(b, () => api.wsCapture(w.id)); loadWs(); }
     if (act === 'rm') { w.apps.splice(+b.closest('.wsapp').dataset.j, 1); pushWs(w, true); renderWs(); }
     if (act === 'del') {
       if (b.dataset.sure) { await api.wsDelete(w.id); loadWs(); }
       else { b.dataset.sure = '1'; b.textContent = 'Click again to delete'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 3000); }
     }
   });
-  $('wsNew').addEventListener('click', async () => { await api.wsCreate(); loadWs(); });
+  $('wsNew').addEventListener('click', async (e) => { await busyBtn(e.currentTarget, () => api.wsCreate()); loadWs(); });
   $('wsInDock').addEventListener('change', (e) => save({ workspacesInDock: e.target.checked }));
   api.onWorkspaces(() => loadWs());
   api.onSettingsTab((tab) => { const t = document.querySelector(`.tabs button[data-p="${tab}"]`); if (t) t.click(); });
@@ -307,9 +316,9 @@ function renderPv() {
     <span class="label">Windows</span>
     <div class="wsapps">${(w.apps || []).map((a, j) => `<div class="wsapp" data-j="${j}"><div class="nm"><b>${escH(a.name)}</b><small>${escH(a.title)}</small></div>
       <select data-f="zone" aria-label="Position">${ZONE_LABELS.map(([v, l]) => opt(v, l, a.zone || '')).join('')}</select><span></span>
-      <button type="button" class="x" data-act="rm" aria-label="Remove">×</button></div>`).join('') || '<p class="hint">No windows yet.</p>'}</div>
+      <button type="button" class="x" data-act="rm" aria-label="Remove">×</button></div>${urlField(a, j)}`).join('') || '<p class="hint">No windows yet.</p>'}</div>
     <label class="row">Open the web pages in a private browser window <input type="checkbox" class="switch" data-f="privateBrowsing"${w.privateBrowsing !== false ? ' checked' : ''}></label>
-    <p class="hint">Needs Brave, Chrome, Edge or Firefox in the windows above. Pages then stay out of your history.</p>
+    <p class="hint">Each Brave, Chrome, Edge or Firefox window above opens as its own new private window on its page. Pages then stay out of your history.</p>
     <label class="row">Minimise other windows <input type="checkbox" class="switch" data-f="minimizeOthers"${w.minimizeOthers !== false ? ' checked' : ''}></label>
     <label class="row">The shortcut also closes windows that were already open <input type="checkbox" class="switch" data-f="closeAll"${w.closeAll ? ' checked' : ''}></label>
     <span class="label">Web pages to open</span>
@@ -333,7 +342,7 @@ $('pvCard').addEventListener('click', async (e) => {
     if (e.target.dataset.sure) { await api.pvRemoveAll(); loadPv(); }
     else { e.target.dataset.sure = '1'; e.target.textContent = 'Click again to delete them all'; }
   }
-  if (id === 'pvNewWs') { pv.list = await api.pvCreate(); renderPv(); }
+  if (id === 'pvNewWs') { pv.list = await busyBtn(e.target, () => api.pvCreate()); renderPv(); }
   if (id === 'pvLockNow') { await api.pvLock(); loadPv(); }
   if (id === 'pvChangeBtn') { const r = await api.pvSetPassword({ pw: $('pvChange').value }); pvMsg(r.ok ? 'Password changed.' : r.error); if (r.ok) $('pvChange').value = ''; }
 });
@@ -353,6 +362,7 @@ $('pvList').addEventListener('input', (e) => {
   const f = e.target.dataset.f;
   if (f === 'name' || f === 'icon') { w[f] = e.target.value; pvPush(w); }
   if (f === 'urls') { w.urls = e.target.value.split(/\s*\n\s*/).map((x) => x.trim()).filter(Boolean); pvPush(w); }
+  if (f === 'url') { w.apps[+e.target.dataset.j].url = e.target.value.trim(); pvPush(w); }
 });
 $('pvList').addEventListener('change', (e) => {
   const w = pvFrom(e.target); if (!w) return;
@@ -365,7 +375,7 @@ $('pvList').addEventListener('click', async (e) => {
   const w = pvFrom(b); if (!w) return;
   const act = b.dataset.act;
   if (act === 'open') { await api.pvOpenNow(w.id); loadPv(); }
-  if (act === 'capture') { pv.list = await api.pvCapture(w.id); renderPv(); }
+  if (act === 'capture') { pv.list = await busyBtn(b, () => api.pvCapture(w.id)); renderPv(); }
   if (act === 'rm') { w.apps.splice(+b.closest('.wsapp').dataset.j, 1); pvPush(w, true); renderPv(); }
   if (act === 'del') {
     if (b.dataset.sure) { pv.list = await api.pvDelete(w.id); renderPv(); }

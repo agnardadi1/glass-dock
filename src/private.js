@@ -125,12 +125,21 @@ module.exports = function createPrivate({ getState, persist, workspaces, webPref
   ipcMain.handle('pv-unlock', (_e, pw) => ({ ok: unlock(pw), list }));
   ipcMain.handle('pv-lock', () => { lock(); return true; });
   const needKey = () => { if (!key) throw new Error('locked'); touch(); };
-  ipcMain.handle('pv-create', () => {
+  ipcMain.handle('pv-create', async () => {
     needKey();
-    list.push({ id: newId(), name: `Private ${list.length + 1}`, icon: '🔒', apps: workspaces.capture(), urls: [], privateBrowsing: true, closeOld: false, minimizeOthers: true });
+    const apps = await workspaces.capture();
+    needKey();
+    list.push({ id: newId(), name: `Private ${list.length + 1}`, icon: '🔒', apps, urls: [], privateBrowsing: true, closeOld: false, minimizeOthers: true });
     save(); return list;
   });
-  ipcMain.handle('pv-capture', (_e, id) => { needKey(); const w = list.find((x) => x.id === id); if (w) { w.apps = workspaces.capture(); save(); } return list; });
+  ipcMain.handle('pv-capture', async (_e, id) => {
+    needKey();
+    const apps = await workspaces.capture();
+    needKey();
+    const w = list.find((x) => x.id === id);
+    if (w) { w.apps = apps; save(); }
+    return list;
+  });
   ipcMain.handle('pv-update', (_e, ws) => {
     needKey();
     const i = list.findIndex((x) => x.id === ws.id);
@@ -139,7 +148,7 @@ module.exports = function createPrivate({ getState, persist, workspaces, webPref
     list[i] = {
       ...keep, name: String(ws.name || keep.name).slice(0, 40), icon: String(ws.icon || keep.icon).slice(0, 8),
       privateBrowsing: ws.privateBrowsing !== false, minimizeOthers: ws.minimizeOthers !== false, closeAll: !!ws.closeAll,
-      urls: (ws.urls || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 20), apps: ws.apps || keep.apps,
+      urls: (ws.urls || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 20), apps: ws.apps ? ws.apps.map(workspaces.cleanApp) : keep.apps,
     };
     save(); return list;
   });

@@ -12,7 +12,9 @@ const ZONES = {
   left4: [0, 0, 0.25, 1], right4: [0.75, 0, 0.25, 1],
   top: [0, 0, 1, 0.5], bottom: [0, 0.5, 1, 0.5],
 };
-const SKIP_EXE = /\\(applicationframehost|textinputhost|searchhost|startmenuexperiencehost|shellexperiencehost|lockapp)\.exe$/i;
+// Browsers we know how to open one window at a time, with their private-window switch
+const BROWSERS = { 'brave.exe': '--incognito', 'chrome.exe': '--incognito', 'msedge.exe': '--inprivate', 'firefox.exe': '--private-window' };
+const SKIP_EXE =/\\(applicationframehost|textinputhost|searchhost|startmenuexperiencehost|shellexperiencehost|lockapp)\.exe$/i;
 
 module.exports = function createWorkspaces(ctx) {
   const { getState, persist, win32, keyOf, appName, safe, saveSettings, notify, broadcast, launchThing } = ctx;
@@ -35,20 +37,69 @@ module.exports = function createWorkspaces(ctx) {
     return win32.listWindows().filter((w) => w.pid !== process.pid && w.exe && !SKIP_EXE.test(w.exe));
   }
 
-  // Turn the open windows into a workspace's app list
-  function capture() {
+  // Read the page address of each browser window from its address bar (UI Automation), in one PowerShell run
+  function readUrls(addrs) {
+    if (!addrs.length || process.platform !== 'win32') return Promise.resolve({});
+    const script = `$ErrorActionPreference='SilentlyContinue'
+Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
+$A=[System.Windows.Automation.AutomationElement]
+$cond=New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty,[System.Windows.Automation.ControlType]::Edit)
+$r=@{}
+foreach($h in @(${addrs.map(String).join(',')})){
+  try{
+    $el=$A::FromHandle([IntPtr][Int64]$h)
+    foreach($e in $el.FindAll([System.Windows.Automation.TreeScope]::Descendants,$cond)){
+      $p=$null
+      if($e.TryGetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern,[ref]$p)){
+        $v=[string]$p.Current.Value
+        if($v -match '^(https?://)?[A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)+(:\\d+)?([/?#]\\S*)?$'){ $r[[string]$h]=$v; break }
+      }
+    }
+  }catch{}
+}
+$r | ConvertTo-Json -Compress`;
+    const encoded = Buffer.from(script, 'utf16le').toString('base64');
+    return new Promise((resolve) => {
+      let out = '';
+      let done = false;
+      const finish = () => {
+        if (done) return; done = true;
+        try {
+          const j = JSON.parse(out.trim() || '{}');
+          const res = {};
+          for (const [k, v] of Object.entries(j || {})) if (typeof v === 'string' && v) res[k] = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+          resolve(res);
+        } catch { resolve({}); }
+      };
+      try {
+        const p = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true });
+        p.stdout.on('data', (d) => { out += d; });
+        p.on('error', finish);
+        p.on('close', finish);
+        setTimeout(() => { try { p.kill(); } catch { /* gone */ } finish(); }, 12000);
+      } catch { finish(); }
+    });
+  }
+
+  // Turn the open windows into a workspace's app list (browser windows also remember their page)
+  async function capture() {
     const apps = [];
+    const browserAddrs = [];
     for (const w of appWindows()) {
       if (w.minimized || !w.rect) continue;
       const d = displayOfRect(w.rect);
       const wa = physBounds(d);
+      const key = keyOf(w.exe);
+      if (BROWSERS[key]) browserAddrs.push(w.addr);
       apps.push({
-        key: keyOf(w.exe), exe: w.exe, name: appName(keyOf(w.exe)), title: w.title,
+        key, exe: w.exe, name: appName(key), title: w.title, addr: String(w.addr),
         display: { id: String(d.id), label: d.label || '' },
         rel: { x: w.rect.left - wa.x, y: w.rect.top - wa.y, w: w.rect.right - w.rect.left, h: w.rect.bottom - w.rect.top },
         maximized: !!w.maximized, zone: '',
       });
     }
+    const urls = await readUrls(browserAddrs).catch(() => ({}));
+    for (const a of apps) { if (urls[a.addr]) a.url = urls[a.addr]; delete a.addr; }
     return apps.reverse(); // bottom-most first, so restoring keeps the same stacking
   }
 
@@ -71,8 +122,7 @@ module.exports = function createWorkspaces(ctx) {
     return pinned ? pinned.path : a.exe;
   }
 
-  // Browsers' private-window switches, for workspaces that open their pages privately
-  const PRIVATE_FLAG = { 'brave.exe': '--incognito', 'chrome.exe': '--incognito', 'msedge.exe': '--inprivate', 'firefox.exe': '--private-window' };
+  const PRIVATE_FLAG = BROWSERS;
   let privateOpen = null; // { addrs: Set } windows a private workspace opened, so they can be closed again
 
   function closeTracked(addrs) {
@@ -101,35 +151,77 @@ module.exports = function createWorkspaces(ctx) {
         for (const w of wins) if (closeKeys.has(keyOf(w.exe))) win32.close(w.hwnd);
       }
 
-      // A browser that opens this workspace's pages in a private window always gets a fresh window
       const urls = (ws.urls || []).filter((u) => /^https?:\/\//i.test(u));
-      const privBrowser = ws.privateBrowsing && urls.length ? ws.apps.find((a) => PRIVATE_FLAG[a.key]) : null;
+      const priv = !!ws.privateBrowsing;
 
       const used = new Set();
       const placed = [];
       const pending = [];
+      const browserQueue = []; // browser windows to open one by one, each with its own page
       const launched = new Set();
-      const pick = (a, list) => {
-        const same = list.filter((w) => keyOf(w.exe) === a.key && !used.has(w.addr) && !(a.fresh && before.has(w.addr)));
-        return same.find((w) => w.title === a.title) || same[0] || null;
+      const pick = (a, list, exactTitle) => {
+        const same = list.filter((w) => keyOf(w.exe) === a.key && !used.has(w.addr));
+        return same.find((w) => w.title === a.title) || (exactTitle ? null : same[0]) || null;
       };
-      const apps = ws.apps.map((a) => ({ ...a, fresh: a === privBrowser }));
+      const apps = ws.apps.map((a) => ({ ...a }));
       for (const a of apps) {
-        const w = a.fresh ? null : pick(a, wins);
+        if (BROWSERS[a.key]) {
+          // Private: always a new private window. Otherwise reuse a window already showing this page,
+          // and open a new window for anything else.
+          const w = priv ? null : pick(a, wins, !!a.url);
+          if (w) { used.add(w.addr); placed.push([a, w]); } else browserQueue.push(a);
+          continue;
+        }
+        const w = pick(a, wins);
         if (w) { used.add(w.addr); placed.push([a, w]); continue; }
         pending.push(a);
-        if (a.fresh) {
-          spawn(a.exe, [PRIVATE_FLAG[a.key], ...urls], { detached: true, stdio: 'ignore' }).on('error', () => {}).unref();
-          launched.add(a.key);
-        } else if (!launched.has(a.key) || /\\(chrome|msedge|brave|firefox|code|explorer)\.exe$/i.test(a.exe)) {
+        if (!launched.has(a.key) || /\\(code|explorer)\.exe$/i.test(a.exe)) {
           launched.add(a.key);
           const pinned = getState().items.find((i) => i.key === a.key);
           Promise.resolve(launchThing(launchPathFor(a), pinned && pinned.aumid)).catch(() => {});
         }
       }
-      if (!privBrowser) for (const url of urls) shell.openExternal(url).catch(() => {});
+
+      // Extra pages with no browser window saved for them
+      if (urls.length && !browserQueue.length) {
+        const known = priv && (ws.apps.find((a) => BROWSERS[a.key])
+          || getState().items.find((i) => BROWSERS[i.key] && /\.exe$/i.test(i.path || ''))
+          || wins.find((w) => BROWSERS[keyOf(w.exe)]));
+        if (known) {
+          const exe = known.exe || known.path;
+          browserQueue.push({ key: keyOf(exe), exe, name: appName(keyOf(exe)), noPlace: true });
+        } else for (const url of urls) shell.openExternal(url).catch(() => {});
+      }
 
       for (const [a, w] of placed) safe('workspace', () => { const t = targetRect(a); win32.place(w.hwnd, t.rect, t.maximize); });
+
+      // Open the browser windows one at a time: start one, wait for it, put it in place, then the next.
+      // Starting them all at once makes the browser merge them into one window while it starts up.
+      let extra = urls;
+      for (const a of browserQueue) {
+        const flag = priv ? BROWSERS[a.key] : null;
+        const pages = [a.url, ...extra].filter(Boolean);
+        extra = [];
+        const args = a.key === 'firefox.exe'
+          ? [priv ? '--private-window' : '-new-window', ...pages]
+          : ['--new-window', ...(flag ? [flag] : []), ...pages];
+        const seen = new Set(appWindows().map((w) => w.addr));
+        try { spawn(a.exe, args, { detached: true, stdio: 'ignore' }).on('error', () => {}).unref(); } catch { /* not there */ }
+        let w = null;
+        const until = Date.now() + 15000;
+        while (!w && Date.now() < until) {
+          await sleep(300);
+          w = appWindows().find((x) => keyOf(x.exe) === a.key && !seen.has(x.addr) && !used.has(x.addr) && x.rect) || null;
+        }
+        if (!w) { pending.push(a); continue; }
+        used.add(w.addr);
+        await sleep(500); // let it finish opening before moving it
+        if (!a.noPlace) {
+          safe('workspace', () => { const t = targetRect(a); win32.place(w.hwnd, t.rect, t.maximize); });
+          placed.push([a, w]);
+        }
+        await sleep(400); // give the browser a moment before asking for the next window
+      }
 
       // Wait (up to 20 s) for the launched apps' windows to appear, placing each one as it shows up
       const until = Date.now() + 20000;
@@ -147,6 +239,10 @@ module.exports = function createWorkspaces(ctx) {
           pending.splice(i, 1);
         }
       }
+
+      // One more pass: browsers sometimes move a window again while they finish starting
+      await sleep(700);
+      for (const [a, w] of placed) safe('workspace', () => { const t = targetRect(a); win32.place(w.hwnd, t.rect, t.maximize); });
 
       // Minimise everything that isn't part of this workspace
       if (ws.minimizeOthers !== false) {
@@ -183,20 +279,22 @@ module.exports = function createWorkspaces(ctx) {
     return true;
   }
 
-  function create(name) {
+  async function create(name) {
     const n = wsList().length + 1;
+    const apps = await capture();
     const ws = {
       id: newId(), name: name || `Workspace ${n}`, icon: ['📘', '🎮', '🎧', '💼', '🎬', '🛠️', '🌙', '⚡'][(n - 1) % 8],
-      apps: capture(), urls: [], look: null, closeOld: true, minimizeOthers: true,
+      apps, urls: [], look: null, closeOld: true, minimizeOthers: true,
     };
     wsList().push(ws);
     persist(); broadcast();
     return ws;
   }
-  function recapture(id) {
+  async function recapture(id) {
     const ws = wsList().find((w) => w.id === id);
     if (!ws) return;
-    ws.apps = capture();
+    const apps = await capture();
+    ws.apps = apps;
     persist(); broadcast();
   }
   function addApp(id, key) {
@@ -212,6 +310,15 @@ module.exports = function createWorkspaces(ctx) {
       maximized: !!w.maximized, zone: '',
     });
     persist(); broadcast();
+  }
+
+  // An app entry coming back from settings: valid zone, and a page address only if it's a web address
+  function cleanApp(a) {
+    const out = { ...a, zone: ZONES[a.zone] ? a.zone : '' };
+    let u = String(a.url || '').trim();
+    if (u && !/^https?:\/\//i.test(u) && /^[\w-]+(\.[\w-]+)+/.test(u)) u = `https://${u}`;
+    if (/^https?:\/\/\S+$/i.test(u)) out.url = u.slice(0, 2000); else delete out.url;
+    return out;
   }
 
   ipcMain.handle('ws-list', () => ({ list: wsList(), active: getState().activeWorkspace, displays: screen.getAllDisplays().map((d) => ({ id: String(d.id), label: d.label || `${d.size.width}×${d.size.height}` })) }));
@@ -235,10 +342,10 @@ module.exports = function createWorkspaces(ctx) {
       name: String(ws.name || keep.name).slice(0, 40), icon: String(ws.icon || keep.icon).slice(0, 8),
       look: ws.look || null, closeOld: ws.closeOld !== false, minimizeOthers: ws.minimizeOthers !== false,
       urls: (ws.urls || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 12),
-      apps: (ws.apps || []).map((a) => ({ ...a, zone: ZONES[a.zone] ? a.zone : '' })),
+      apps: (ws.apps || []).map(cleanApp),
     };
     persist(); broadcast();
   });
 
-  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES), capture, runPrivate, closePrivate, isPrivateOpen: () => !!privateOpen };
+  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES), capture, cleanApp, runPrivate, closePrivate, isPrivateOpen: () => !!privateOpen };
 };

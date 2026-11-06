@@ -689,7 +689,7 @@ function workspaceMenu() {
   return [
     ...list.map((w, i) => ({ label: `${w.icon} ${w.name}`, type: 'radio', checked: state.activeWorkspace === w.id, accelerator: i < 9 ? `Alt+Shift+${i + 1}` : undefined, registerAccelerator: false, click: () => workspaces.activate(w.id) })),
     ...(list.length ? [{ type: 'separator' }] : []),
-    { label: 'New workspace from open windows', click: () => { workspaces.create(); openSettings('workspaces'); } },
+    { label: 'New workspace from open windows', click: () => { workspaces.create().then(() => openSettings('workspaces')).catch(() => {}); } },
     { label: 'Edit workspaces…', click: () => openSettings('workspaces') },
   ];
 }
@@ -768,7 +768,7 @@ ipcMain.on('context', (_e, uid) => {
     tpl.push({ label: 'Add to workspace', submenu: [
       ...list.map((w) => ({ label: `${w.icon} ${w.name}`, enabled: !w.apps.some((a) => a.key === key), click: () => workspaces.addApp(w.id, key) })),
       ...(list.length ? [{ type: 'separator' }] : []),
-      { label: 'New workspace from open windows', click: () => { workspaces.create(); openSettings('workspaces'); } },
+      { label: 'New workspace from open windows', click: () => { workspaces.create().then(() => openSettings('workspaces')).catch(() => {}); } },
     ] });
   }
   if (g) {
