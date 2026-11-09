@@ -162,6 +162,15 @@ function html(v) {
   if (k === 'game') {
     return `<div class="row" id="gameBox">${gameInner()}</div>`;
   }
+  if (k === 'session') {
+    const d = transient.data;
+    const bits = [];
+    if (d.avgFps != null) bits.push(`${d.avgFps} fps avg`);
+    if (d.lowFps != null) bits.push(`1% low ${d.lowFps}`);
+    if (d.maxTemp != null) bits.push(`GPU up to ${d.maxTemp}°`);
+    const len = d.minutes >= 60 ? `${Math.floor(d.minutes / 60)} h ${d.minutes % 60} min` : `${d.minutes} min`;
+    return `<div class="row"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.6 5.9A3 3 0 0 0 7.2 17l1.8-2h6l1.8 2a3 3 0 0 0 5.1-2.5l-.6-5.9A4 4 0 0 0 17.3 5z"/></svg><div class="grow"><div class="label ell">${esc(d.name || 'Game')} · ${len}</div><div class="small ell">${bits.length ? esc(bits.join(' · ')) : 'Session over'}</div></div></div>`;
+  }
   if (k === 'update') {
     return `<div class="row"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><div class="grow"><div class="label">Glass Dock ${esc(transient.data.version)} is ready</div><div class="small">Restart the dock to update</div></div><button class="btn blue" data-act="update">Restart</button></div>`;
   }
@@ -526,6 +535,7 @@ api.onSound((st) => {
 });
 api.onUpdate((u) => show('update', 15000, u));
 api.onGame((g) => { game = g; lastSig = ''; render(); });
+api.onSession((d) => { if (S) show('session', 14000, d); });
 api.onWorkspaceNote((m) => show('ws', m.phase === 'start' ? 20000 : 2200, m));
 api.onWeather((w) => { weather = w; render(); });
 api.onStats((st) => {

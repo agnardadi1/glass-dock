@@ -10,6 +10,10 @@ const win32 = require('./win32');
 const { Media } = require('./media');
 const { Sound } = require('./audio');
 const createIsland = require('./island');
+const createStats = require('./stats');
+const createHud = require('./hud');
+const createCompanion = require('./companion');
+const createRules = require('./rules');
 const createWorkspaces = require('./workspaces');
 const createStacks = require('./stacks');
 const createUpdater = require('./updater');
@@ -37,6 +41,7 @@ let unhookEvents = () => {};
 let quitting = false;
 const iconCache = new Map();
 let island = null;
+let stats = null, hud = null, companion = null, rules = null;
 let workspaces = null;
 let stacks = null;
 let updater = null;
@@ -44,11 +49,13 @@ let privateWs = null;
 const media = new Media((m) => {
   if (dock && !dock.isDestroyed()) dock.webContents.send('media', m);
   if (island) island.send('media', m);
+  if (companion) companion.send('media', m);
 });
 const sound = new Sound((st) => {
   if (dock && !dock.isDestroyed()) dock.webContents.send('sound', st);
   if (soundWin && !soundWin.isDestroyed()) soundWin.webContents.send('sound', st);
   if (island) island.send('sound', st);
+  if (rules) rules.soundChanged(st);
 });
 
 // ---------- helpers ----------
@@ -321,6 +328,7 @@ function pollRunningNow() {
       });
     }
   }
+  if (rules) rules.windowsSeen(wins);
   const fg = wins.find((w) => w.foreground);
   if (fg) { lastAppFg = fg.addr; attention.delete(keyOf(fg.exe)); } // you looked at it
   for (const k of [...attention.keys()]) if (!groups.has(k)) attention.delete(k);
@@ -670,7 +678,11 @@ function visibilityTickNow() {
   } else gameOffSince = 0;
   if (gameNow !== gameActive) {
     gameActive = gameNow;
-    if (island) island.send('game', { on: gameNow, name: gameNow && fg.exe ? appName(keyOf(fg.exe)) : '' });
+    const gameName = gameNow && fg.exe ? appName(keyOf(fg.exe)) : '';
+    if (island) island.send('game', { on: gameNow, name: gameName });
+    if (companion) companion.send('game', { on: gameNow, name: gameName });
+    if (stats) stats.retime();
+    if (hud) hud.gameChanged(gameNow, gameName, gameNow ? norm(fg.exe) : null);
   }
 
   let wantHide = false;
@@ -1062,6 +1074,8 @@ function saveSettings(patch) {
   if (tray) tray.setContextMenu(Menu.buildFromTemplate(dockMenuTemplate()));
   if (alive(settingsWin)) settingsWin.webContents.send('settings', s);
   if (island) island.apply();
+  if (hud) hud.apply();
+  if (companion) companion.apply();
   return s;
 }
 
@@ -1156,10 +1170,19 @@ app.whenReady().then(async () => {
     if (it.icon) persist();
   }
   createDock();
+  stats = createStats({ win32, getSettings: () => state.settings, isGame: () => gameActive, safe });
+  hud = createHud({ getSettings: () => state.settings, win32, webPrefs, safe, stats, isGame: () => gameActive, notify: (sum) => { island.send('session', sum); companion.send('session', sum); } });
+  companion = createCompanion({
+    getSettings: () => state.settings, webPrefs, safe, stats, isGame: () => gameActive, media,
+    onClip: (id) => ipcMain.emit('island-clip', null, id),
+  });
   island = createIsland({
-    getSettings: () => state.settings, win32, dockDisplay: targetDisplay, fullscreenOn, webPrefs, safe, media, isGame: () => gameActive,
+    getSettings: () => state.settings, win32, dockDisplay: targetDisplay, fullscreenOn, webPrefs, safe, media, isGame: () => gameActive, stats,
+    also: (ch, data) => companion.send(ch, data),
   });
   island.start();
+  hud.start();
+  companion.start();
   updater = createUpdater({
     notify: (m) => island.send('update', m),
     onChange: (st) => {
@@ -1175,6 +1198,8 @@ app.whenReady().then(async () => {
     getState: () => state, persist, win32, keyOf, appName, safe, saveSettings, launchThing,
     notify: (m) => island.send('workspace', m), broadcast: broadcastWorkspaces,
   });
+  rules = createRules({ getState: () => state, persist, win32, keyOf, appName, workspaces, safe, broadcast: broadcastWorkspaces });
+  rules.start();
   privateWs = createPrivate({ getState: () => state, persist, workspaces, webPrefs, safe, newId: uidId });
   registerHotkeys();
   createOverlay();

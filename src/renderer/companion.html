@@ -1,0 +1,128 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock companion</title>
+  <style>
+    :root {
+      --glass-rgb: 245 247 250; --glass-edge: rgba(255,255,255,.6);
+      --fg: #1d2330; --dim: rgba(29,35,48,.6); --line: rgba(30,40,60,.14); --accent: #2f6fe0;
+      --card: rgba(255,255,255,.5); --hover: rgba(30,40,60,.08);
+      --green: #1f9d4b; --orange: #e0820a; --red: #d93a32; --blue: #2f6fe0;
+      --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --glass-rgb: 34 37 48; --glass-edge: rgba(255,255,255,.14);
+        --fg: #eef1f7; --dim: rgba(238,241,247,.6); --line: rgba(255,255,255,.12); --accent: #6ea0ff;
+        --card: rgba(255,255,255,.06); --hover: rgba(255,255,255,.1);
+        --green: #30d158; --orange: #ff9f0a; --red: #ff453a; --blue: #6ea0ff;
+      }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; font-family: var(--font); color: var(--fg); }
+    [hidden] { display: none !important; }
+    .panel {
+      position: absolute; inset: 8px; display: flex; gap: 10px; padding: 12px;
+      background: rgb(var(--tint, var(--glass-rgb)) / var(--alpha, .62));
+      border: 1px solid var(--edge, var(--glass-edge)); border-radius: 20px;
+      box-shadow: 0 6px 22px rgba(0,0,0,.22), 0 0 var(--glow, 0px) var(--glow-c, transparent), inset 0 1px 0 var(--glass-edge);
+      backdrop-filter: blur(24px) saturate(1.4);
+      transform: translateY(0); opacity: 1; transition: transform .4s cubic-bezier(.2,.85,.25,1), opacity .3s;
+    }
+    body.top .panel { inset: 8px; }
+    .sec { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px; border-radius: 14px; background: var(--card); overflow: hidden; }
+    .sec h3 { margin: 0; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); display: flex; justify-content: space-between; align-items: center; }
+    .num { font-variant-numeric: tabular-nums; }
+    .ell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .small { font-size: 12px; color: var(--dim); }
+
+    /* clock */
+    .clock { flex: 0 0 170px; justify-content: center; align-items: flex-start; }
+    .clock .time { font-size: 48px; font-weight: 600; letter-spacing: -2px; line-height: 1; }
+    .clock .date { font-size: 14px; color: var(--dim); }
+    .clock .wx { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 16px; }
+    .clock .wx svg { width: 28px; height: 28px; }
+
+    /* music */
+    .music { flex: 0 0 300px; }
+    .music .now { display: flex; gap: 12px; align-items: center; min-height: 0; flex: 1; }
+    .music .art { flex: none; width: 84px; height: 84px; border-radius: 12px; background: var(--hover) center / cover no-repeat; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+    .music .title { font-size: 16px; font-weight: 600; }
+    .music .artist { font-size: 13px; color: var(--dim); }
+    .scrub { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--dim); }
+    .scrub input { flex: 1; accent-color: var(--accent); height: 4px; margin: 0; }
+    .ctrls { display: flex; justify-content: center; gap: 18px; }
+    .icon-btn { border: 0; background: none; color: var(--fg); width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; cursor: pointer; }
+    .icon-btn:hover { background: var(--hover); }
+    .icon-btn svg { width: 20px; height: 20px; fill: currentColor; }
+    .icon-btn.lg { width: 44px; height: 44px; background: var(--fg); color: rgb(var(--glass-rgb)); }
+    .icon-btn.lg svg { width: 22px; height: 22px; }
+
+    /* stats */
+    .stats { flex: 1 1 300px; }
+    .graphs { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 6px 14px; flex: 1; min-height: 0; }
+    .g { display: flex; flex-direction: column; gap: 2px; min-width: 0; min-height: 0; }
+    .g .lbl { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); }
+    .g .lbl b { color: var(--fg); font-weight: 600; font-family: var(--mono); font-size: 12px; }
+    .g canvas { width: 100%; flex: 1 1 0; min-height: 18px; display: block; border-radius: 6px; background: var(--hover); }
+
+    /* clipboard */
+    .clips { flex: 1 1 220px; }
+    .cliplist { display: flex; flex-direction: column; gap: 4px; overflow: auto; flex: 1; min-height: 0; scrollbar-width: thin; }
+    .clip { border: 0; background: var(--hover); color: var(--fg); text-align: left; padding: 7px 10px; border-radius: 9px; font: 12.5px var(--font); cursor: pointer; display: flex; gap: 8px; align-items: center; min-height: 32px; }
+    .clip:hover { outline: 2px solid var(--accent); }
+    .clip img { height: 40px; border-radius: 5px; }
+    .clip .t { white-space: pre-wrap; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+    .clip.copied { outline: 2px solid var(--green); }
+
+    /* downloads + session */
+    .dl { flex: 0 0 200px; }
+    .dlrow { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
+    .spin { width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; flex: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .session { font-size: 12.5px; padding: 8px 10px; border-radius: 9px; background: var(--hover); }
+    .session b { display: block; }
+  </style>
+</head>
+<body>
+  <div class="panel" id="panel">
+    <section class="sec clock" id="secClock">
+      <div class="time num" id="time">—</div>
+      <div class="date" id="date"></div>
+      <div class="wx" id="wx" hidden></div>
+    </section>
+    <section class="sec music" id="secMusic">
+      <h3>Now playing <span class="small" id="mApp"></span></h3>
+      <div class="now"><div class="art" id="art"></div><div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:3px"><div class="title ell" id="mTitle">Nothing playing</div><div class="artist ell" id="mArtist"></div></div></div>
+      <div class="scrub" id="scrub" hidden><span class="num" id="posT">0:00</span><input type="range" id="seek" min="0" max="1" step="1" aria-label="Song position"><span class="num" id="lenT"></span></div>
+      <div class="ctrls">
+        <button class="icon-btn" data-cmd="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM18 6l-9 6 9 6z"/></svg></button>
+        <button class="icon-btn lg" data-cmd="toggle" aria-label="Play or pause" id="toggle"><svg viewBox="0 0 24 24" id="playIco"><path d="M8 5v14l11-7z"/></svg></button>
+        <button class="icon-btn" data-cmd="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 6l9 6-9 6z"/></svg></button>
+      </div>
+    </section>
+    <section class="sec stats" id="secStats">
+      <h3>This PC <span class="small" id="gpuName"></span></h3>
+      <div class="graphs" id="graphs">
+        <div class="g"><div class="lbl"><span>CPU</span><b id="vCpu">—</b></div><canvas data-k="cpu"></canvas></div>
+        <div class="g"><div class="lbl"><span>GPU</span><b id="vGpu">—</b></div><canvas data-k="gpu"></canvas></div>
+        <div class="g"><div class="lbl"><span>GPU temperature</span><b id="vTemp">—</b></div><canvas data-k="gpuTemp"></canvas></div>
+        <div class="g"><div class="lbl"><span>Memory</span><b id="vRam">—</b></div><canvas data-k="ram"></canvas></div>
+      </div>
+    </section>
+    <section class="sec clips" id="secClips">
+      <h3>Clipboard <span class="small">click to copy again</span></h3>
+      <div class="cliplist" id="clipList"><div class="small">Nothing copied yet.</div></div>
+    </section>
+    <section class="sec dl" id="secDl">
+      <h3>Downloads</h3>
+      <div id="dlList" class="small">No downloads running.</div>
+      <div id="sessionBox" hidden></div>
+    </section>
+  </div>
+  <script src="companion.js"></script>
+</body>
+</html>

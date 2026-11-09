@@ -312,6 +312,16 @@ $r | ConvertTo-Json -Compress`;
     persist(); broadcast();
   }
 
+  // "Opens by itself when…" settings coming back from the settings window
+  function cleanTrigger(t) {
+    if (!t || !['app', 'time', 'device'].includes(t.type)) return null;
+    const out = { type: t.type, on: t.on !== false };
+    if (t.type === 'app') out.key = String(t.key || '').toLowerCase().slice(0, 80);
+    if (t.type === 'time') { out.time = /^\d{2}:\d{2}$/.test(t.time || '') ? t.time : '08:00'; out.days = (Array.isArray(t.days) ? t.days : []).map(Number).filter((d) => d >= 0 && d <= 6); }
+    if (t.type === 'device') out.device = String(t.device || '').slice(0, 80);
+    return out;
+  }
+
   // An app entry coming back from settings: valid zone, and a page address only if it's a web address
   function cleanApp(a) {
     const out = { ...a, zone: ZONES[a.zone] ? a.zone : '' };
@@ -343,9 +353,10 @@ $r | ConvertTo-Json -Compress`;
       look: ws.look || null, closeOld: ws.closeOld !== false, minimizeOthers: ws.minimizeOthers !== false,
       urls: (ws.urls || []).filter((u) => /^https?:\/\//i.test(u)).slice(0, 12),
       apps: (ws.apps || []).map(cleanApp),
+      trigger: cleanTrigger(ws.trigger),
     };
     persist(); broadcast();
   });
 
-  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES), capture, cleanApp, runPrivate, closePrivate, isPrivateOpen: () => !!privateOpen };
+  return { activate, create, recapture, addApp, list: wsList, ZONES: Object.keys(ZONES), capture, cleanApp, targetRect, isBusy: () => busy, cleanTrigger, runPrivate, closePrivate, isPrivateOpen: () => !!privateOpen };
 };

@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>Glass Dock game HUD</title>
+  <style>
+    :root {
+      --ink: #f5f6f8; --dim: rgba(245,246,248,.6);
+      --green: #30d158; --orange: #ff9f0a; --red: #ff453a; --blue: #0a84ff;
+      --font: "Segoe UI Variable Display", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+      --mono: "Cascadia Mono", "Consolas", ui-monospace, monospace;
+      color-scheme: dark;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; font-family: var(--font); color: var(--ink); }
+    .card {
+      position: absolute; top: 0; right: 0; min-width: 150px;
+      padding: 8px 12px; border-radius: 14px; background: rgba(0,0,0,var(--alpha, .8));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 3px;
+    }
+    body.left .card { right: auto; left: 0; }
+    body.bottom .card { top: auto; bottom: 0; }
+    .fps { display: flex; align-items: baseline; gap: 6px; }
+    .fps b { font: 600 30px/1 var(--mono); letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .fps small { font-size: 12px; color: var(--dim); }
+    .fps .low { margin-left: auto; font: 500 13px var(--mono); color: var(--dim); font-variant-numeric: tabular-nums; }
+    .fps .low b { font-size: 13px; letter-spacing: 0; color: var(--ink); }
+    .row { display: flex; justify-content: space-between; gap: 12px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+    .row span:first-child { color: var(--dim); }
+    .row .v { font-family: var(--mono); }
+    .bar { height: 3px; border-radius: 2px; background: rgba(255,255,255,.1); overflow: hidden; margin: 1px 0 2px; }
+    .bar i { display: block; height: 100%; width: 0; background: var(--blue); transition: width .5s; }
+    .foot { display: flex; justify-content: space-between; color: var(--dim); font-size: 11.5px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="fps" id="fpsRow"><b id="fps">—</b><small>fps</small><span class="low" id="lowWrap">1% low <b id="low">—</b></span></div>
+    <div class="row" id="gpuRow"><span>GPU</span><span><span class="v" id="gpu">—</span> · <span class="v" id="gpuTemp">—</span></span></div>
+    <div class="bar" id="gpuBar"><i></i></div>
+    <div class="row" id="cpuRow"><span>CPU</span><span class="v" id="cpu">—</span></div>
+    <div class="row" id="vramRow"><span>VRAM</span><span class="v" id="vram">—</span></div>
+    <div class="foot"><span id="session"></span><span id="clock"></span></div>
+  </div>
+  <script src="hud.js"></script>
+</body>
+</html>

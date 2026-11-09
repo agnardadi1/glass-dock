@@ -43,7 +43,10 @@ const DEFAULT_SETTINGS = {
   gameIsland: 'stats',      // 'stats' | 'hide' | 'normal'
   gameApps: [],             // programs you marked as games from the dock menu
   notGames: [],             // programs you said aren't games
-  gameFps: true,            // show the game's frame rate in the island (needs RTSS / MSI Afterburner)
+  gameFps: true,
+  gameSummary: true,        // a session summary in the island when a game ends
+  companion: { on: false, display: '', side: 'bottom', height: 320, hideInGame: true, scale: 1, sections: { clock: true, music: true, stats: true, clips: true, downloads: true } },
+  hud: { on: false, corner: 'tr', opacity: 0.8, scale: 1, show: { fps: true, low: true, gpu: true, cpu: true, vram: true, clock: true } },            // show the game's frame rate in the island (needs RTSS / MSI Afterburner)
   gameEdgeReveal: false,    // pushing the mouse to the bottom edge shows the dock during games
   look: DEFAULT_LOOK,
   island: DEFAULT_ISLAND,
@@ -69,10 +72,11 @@ function load() {
       // Windows settings we changed, so they can be put back even after a crash
       restore: d.restore || {},
       workspaces: Array.isArray(d.workspaces) ? d.workspaces : [],
+      rules: Array.isArray(d.rules) ? d.rules : [],
       activeWorkspace: d.activeWorkspace || null,
     };
   } catch {
-    return { items: null, settings: structuredClone(DEFAULT_SETTINGS), restore: {}, workspaces: [], activeWorkspace: null };
+    return { items: null, settings: structuredClone(DEFAULT_SETTINGS), restore: {}, workspaces: [], rules: [], activeWorkspace: null };
   }
 }
 

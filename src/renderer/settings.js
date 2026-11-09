@@ -42,6 +42,8 @@ function build(info) {
     $('paneBehave').hidden = t.dataset.p !== 'behave';
     $('paneIsland').hidden = t.dataset.p !== 'island';
     $('paneWorkspaces').hidden = t.dataset.p !== 'workspaces';
+    $('paneGaming').hidden = t.dataset.p !== 'gaming';
+    $('paneCompanion').hidden = t.dataset.p !== 'companion';
   }));
   // segmented controls
   for (const [id, key, opts] of SEGS) {
@@ -90,6 +92,30 @@ function build(info) {
   $('iDisplay').addEventListener('change', (e) => isl({ display: e.target.value }));
   const PSW = { pClock: 'clock', pWeather: 'weather', pStats: 'stats', pResume: 'resume', pClipboard: 'clipboard', pLaunch: 'launch' };
   for (const [id, key] of Object.entries(PSW)) $(id).addEventListener('change', (e) => isl({ panels: { ...s.island.panels, [key]: e.target.checked } }));
+
+  // gaming: HUD
+  const hud = (patch) => save({ hud: { ...s.hud, ...patch } });
+  $('gameSummary').addEventListener('change', (e) => save({ gameSummary: e.target.checked }));
+  $('hudOn').addEventListener('change', (e) => hud({ on: e.target.checked }));
+  $('hudCorner').innerHTML = [['tl', 'Top left'], ['tr', 'Top right'], ['bl', 'Bottom left'], ['br', 'Bottom right']].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
+  $('hudCorner').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) hud({ corner: b.dataset.v }); });
+  $('hudOpacity').addEventListener('input', (e) => hud({ opacity: +e.target.value }));
+  $('hudScale').addEventListener('input', (e) => hud({ scale: +e.target.value }));
+  const HSW = { hFps: 'fps', hLow: 'low', hGpu: 'gpu', hCpu: 'cpu', hVram: 'vram', hClock: 'clock' };
+  for (const [id, key] of Object.entries(HSW)) $(id).addEventListener('change', (e) => hud({ show: { ...(s.hud.show || {}), [key]: e.target.checked } }));
+
+  // companion panel
+  const comp = (patch) => save({ companion: { ...s.companion, ...patch } });
+  $('cOn').addEventListener('change', (e) => comp({ on: e.target.checked }));
+  $('cDisplay').innerHTML = '<option value="">The screen that isn\'t the main one</option>' + info.displays.map((d) => `<option value="${d.id}">${d.label}${d.primary ? ' – main' : ''}</option>`).join('');
+  $('cDisplay').addEventListener('change', (e) => comp({ display: e.target.value }));
+  $('cSide').innerHTML = [['bottom', 'Bottom'], ['top', 'Top']].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
+  $('cSide').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) comp({ side: b.dataset.v }); });
+  $('cHeight').addEventListener('input', (e) => comp({ height: +e.target.value }));
+  $('cScale').addEventListener('input', (e) => comp({ scale: +e.target.value }));
+  $('cHideGame').addEventListener('change', (e) => comp({ hideInGame: e.target.checked }));
+  const CSW = { cClock: 'clock', cMusic: 'music', cStats: 'stats', cClips: 'clips', cDl: 'downloads' };
+  for (const [id, key] of Object.entries(CSW)) $(id).addEventListener('change', (e) => comp({ sections: { ...(s.companion.sections || {}), [key]: e.target.checked } }));
   let placeTimer;
   $('iPlace').addEventListener('input', (e) => { clearTimeout(placeTimer); placeTimer = setTimeout(() => isl({ weatherPlace: e.target.value.trim() }), 700); });
   $('iUnits').innerHTML = [['c', '°C'], ['f', '°F']].map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
@@ -148,6 +174,25 @@ function sync() {
   const PSW = { pClock: 'clock', pWeather: 'weather', pStats: 'stats', pResume: 'resume', pClipboard: 'clipboard', pLaunch: 'launch' };
   for (const [id, key] of Object.entries(PSW)) $(id).checked = !!P[key];
   $('weatherOpts').hidden = !P.weather;
+  // gaming
+  $('gameSummary').checked = s.gameSummary !== false;
+  const H = s.hud || {};
+  $('hudOn').checked = !!H.on;
+  $('hudCorner').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === (H.corner || 'tr')));
+  $('hudOpacity').value = H.opacity == null ? 0.8 : H.opacity; $('hudOpacityOut').textContent = Math.round((H.opacity == null ? 0.8 : H.opacity) * 100) + '%';
+  $('hudScale').value = H.scale || 1; $('hudScaleOut').textContent = Math.round((H.scale || 1) * 100) + '%';
+  const HS = H.show || {};
+  for (const [id, key] of Object.entries({ hFps: 'fps', hLow: 'low', hGpu: 'gpu', hCpu: 'cpu', hVram: 'vram', hClock: 'clock' })) $(id).checked = HS[key] !== false;
+  // companion
+  const C = s.companion || {};
+  $('cOn').checked = !!C.on;
+  $('cDisplay').value = String(C.display || '');
+  $('cSide').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === (C.side || 'bottom')));
+  $('cHeight').value = C.height || 320; $('cHeightOut').textContent = (C.height || 320) + ' px';
+  $('cScale').value = C.scale || 1; $('cScaleOut').textContent = Math.round((C.scale || 1) * 100) + '%';
+  $('cHideGame').checked = C.hideInGame !== false;
+  const CS = C.sections || {};
+  for (const [id, key] of Object.entries({ cClock: 'clock', cMusic: 'music', cStats: 'stats', cClips: 'clips', cDl: 'downloads' })) $(id).checked = CS[key] !== false;
   $('launchOpts').hidden = !P.launch;
   if (document.activeElement !== $('iPlace')) $('iPlace').value = I.weatherPlace || '';
   $('iUnits').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.v === (I.units || 'c')));
@@ -199,7 +244,24 @@ function wsCard(w, i) {
     <label class="row">Dock look <select data-f="look">${opt('keep', "Don't change it", lookVal)}${w.look ? opt('saved', 'The look saved with it', lookVal) : ''}${opt('current', 'Use the current look', '')}${Object.keys(PRESETS).map((k) => opt('preset:' + k, k, '')).join('')}</select></label>
     <span class="label">Web pages to open</span>
     <textarea data-f="urls" placeholder="https://… (one per line)">${escH((w.urls || []).join('\n'))}</textarea>
+    ${triggerHtml(w)}
   </div>`;
+}
+const DAYS = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
+let ruleInfo = { rules: [], displays: [], apps: [] };
+// "Opens by itself when…" for a workspace card
+function triggerHtml(w) {
+  const t = w.trigger || { type: 'none' };
+  const opt = (v, l, cur) => `<option value="${escH(v)}"${v === cur ? ' selected' : ''}>${escH(l)}</option>`;
+  const apps = ruleInfo.apps.some((a) => a.key === t.key) || !t.key ? ruleInfo.apps : [{ key: t.key, name: t.key }, ...ruleInfo.apps];
+  let extra = '';
+  if (t.type === 'app') extra = `<label class="row">App <select data-f="trigKey">${opt('', 'Choose an app…', t.key || '')}${apps.map((a) => opt(a.key, a.name, t.key || '')).join('')}</select></label>`;
+  if (t.type === 'time') extra = `<label class="row">Time <input type="time" data-f="trigTime" value="${escH(t.time || '08:00')}"></label>
+      <div class="seg" style="margin-top:4px">${DAYS.map(([d, l]) => `<button type="button" data-f="trigDay" data-d="${d}" aria-pressed="${!(t.days || []).length || (t.days || []).includes(d)}">${l}</button>`).join('')}</div>`;
+  if (t.type === 'device') extra = `<label class="row">Device name contains <input type="text" data-f="trigDevice" value="${escH(t.device || '')}" placeholder="e.g. Headphones, Arctis, Speakers"></label>`;
+  return `<span class="label">Opens by itself</span>
+    <label class="row">When <select data-f="trigType">${opt('none', 'Never (only by hand)', t.type || 'none')}${opt('app', 'an app starts', t.type)}${opt('time', 'at a time of day', t.type)}${opt('device', 'the sound switches to a device', t.type)}</select></label>
+    ${extra}`;
 }
 function renderWs() {
   const box = $('wsList');
@@ -208,13 +270,25 @@ function renderWs() {
   box.innerHTML = ws.list.map(wsCard).join('') || '';
   $('wsInDock').checked = !s || s.workspacesInDock !== false;
 }
-async function loadWs() { ws = await api.wsList(); renderWs(); }
+async function loadWs() { [ws, ruleInfo] = await Promise.all([api.wsList(), api.rulesList()]); renderWs(); renderRules(); }
 
 const wsTimers = {};
 function pushWs(w, now) {
   clearTimeout(wsTimers[w.id]);
   const send = () => api.wsUpdate(w);
   if (now) send(); else wsTimers[w.id] = setTimeout(send, 500);
+}
+function renderRules() {
+  const opt = (v, l, cur) => `<option value="${escH(v)}"${v === cur ? ' selected' : ''}>${escH(l)}</option>`;
+  const used = new Set(ruleInfo.rules.map((r) => r.key));
+  $('ruleApp').innerHTML = opt('', 'Choose an app…', '') + ruleInfo.apps.filter((a) => !used.has(a.key)).map((a) => opt(a.key, a.name, '')).join('');
+  $('rulesList').innerHTML = ruleInfo.rules.length ? ruleInfo.rules.map((r, j) => `<div class="wsapp" data-j="${j}" style="grid-template-columns:minmax(0,1fr) auto auto auto auto">
+      <div class="nm"><b>${escH(r.name || r.key)}</b><small>${escH(r.key)}</small></div>
+      <select data-f="display" aria-label="Screen for ${escH(r.name)}">${opt('', 'Main screen', r.display ? r.display.id : '')}${ruleInfo.displays.map((d) => opt(d.id, d.label, r.display ? r.display.id : '')).join('')}</select>
+      <select data-f="zone" aria-label="Position for ${escH(r.name)}">${ZONE_LABELS.filter(([v]) => v).map(([v, l]) => opt(v, l, r.zone || 'full')).join('')}</select>
+      <input type="checkbox" class="switch" data-f="on" aria-label="Rule on"${r.on !== false ? ' checked' : ''}>
+      <button type="button" class="x" data-act="rm" aria-label="Remove rule">×</button></div>`).join('')
+    : '<p class="hint">No rules yet.</p>';
 }
 function wsFrom(el) { const card = el.closest('.card[data-id]'); return card && ws.list.find((w) => w.id === card.dataset.id); }
 
@@ -227,10 +301,14 @@ document.addEventListener('DOMContentLoaded', () => {});
     if (f === 'name' || f === 'icon') { w[f] = e.target.value; pushWs(w); }
     if (f === 'urls') { w.urls = e.target.value.split(/\s*\n\s*/).map((x) => x.trim()).filter(Boolean); pushWs(w); }
     if (f === 'url') { w.apps[+e.target.dataset.j].url = e.target.value.trim(); pushWs(w); }
+    if (f === 'trigDevice') { w.trigger = { ...w.trigger, device: e.target.value }; pushWs(w); }
   });
   box.addEventListener('change', (e) => {
     const w = wsFrom(e.target); if (!w) return;
     const f = e.target.dataset.f;
+    if (f === 'trigType') { w.trigger = e.target.value === 'none' ? null : { type: e.target.value, on: true, ...(e.target.value === 'time' ? { time: '08:00', days: [1, 2, 3, 4, 5] } : {}) }; pushWs(w, true); renderWs(); return; }
+    if (f === 'trigKey') { w.trigger = { ...w.trigger, key: e.target.value }; pushWs(w, true); return; }
+    if (f === 'trigTime') { w.trigger = { ...w.trigger, time: e.target.value || '08:00' }; pushWs(w, true); return; }
     const row = e.target.closest('.wsapp');
     if (row && (f === 'display' || f === 'zone')) {
       const a = w.apps[+row.dataset.j];
@@ -251,6 +329,13 @@ document.addEventListener('DOMContentLoaded', () => {});
     const b = e.target.closest('[data-act]'); if (!b) return;
     const w = wsFrom(b); if (!w) return;
     const act = b.dataset.act;
+    if (b.dataset.f === 'trigDay') {
+      const d = +b.dataset.d;
+      let days = (w.trigger && w.trigger.days && w.trigger.days.length) ? [...w.trigger.days] : DAYS.map(([x]) => x);
+      days = days.includes(d) ? days.filter((x) => x !== d) : [...days, d];
+      if (!days.length) days = [d];
+      w.trigger = { ...w.trigger, days }; pushWs(w, true); renderWs(); return;
+    }
     if (act === 'go') { b.disabled = true; b.textContent = 'Switching…'; await api.wsActivate(w.id); loadWs(); }
     if (act === 'capture') { await busyBtn(b, () => api.wsCapture(w.id)); loadWs(); }
     if (act === 'rm') { w.apps.splice(+b.closest('.wsapp').dataset.j, 1); pushWs(w, true); renderWs(); }
@@ -258,6 +343,27 @@ document.addEventListener('DOMContentLoaded', () => {});
       if (b.dataset.sure) { await api.wsDelete(w.id); loadWs(); }
       else { b.dataset.sure = '1'; b.textContent = 'Click again to delete'; setTimeout(() => { if (b.isConnected) { delete b.dataset.sure; b.textContent = 'Delete'; } }, 3000); }
     }
+  });
+  // window rules
+  $('ruleAdd').addEventListener('click', async () => {
+    const key = $('ruleApp').value; if (!key) return;
+    const app = ruleInfo.apps.find((a) => a.key === key);
+    ruleInfo.rules.push({ key, name: app ? app.name : key, display: null, zone: 'full', on: true });
+    ruleInfo.rules = await api.rulesSave(ruleInfo.rules); renderRules();
+  });
+  $('rulesList').addEventListener('change', async (e) => {
+    const row = e.target.closest('.wsapp'); if (!row) return;
+    const r = ruleInfo.rules[+row.dataset.j]; if (!r) return;
+    const f = e.target.dataset.f;
+    if (f === 'display') { const d = ruleInfo.displays.find((x) => x.id === e.target.value); r.display = d ? { id: d.id, label: d.label } : null; }
+    if (f === 'zone') r.zone = e.target.value;
+    if (f === 'on') r.on = e.target.checked;
+    ruleInfo.rules = await api.rulesSave(ruleInfo.rules); renderRules();
+  });
+  $('rulesList').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-act="rm"]'); if (!b) return;
+    ruleInfo.rules.splice(+b.closest('.wsapp').dataset.j, 1);
+    ruleInfo.rules = await api.rulesSave(ruleInfo.rules); renderRules();
   });
   $('wsNew').addEventListener('click', async (e) => { await busyBtn(e.currentTarget, () => api.wsCreate()); loadWs(); });
   $('wsInDock').addEventListener('change', (e) => save({ workspacesInDock: e.target.checked }));

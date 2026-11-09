@@ -2,7 +2,6 @@
 // what's happening (music, volume, mic/camera use, screenshots, downloads, a timer).
 // This file runs in the main process; the pill itself is drawn by renderer/island.html.
 const { app, BrowserWindow, screen, clipboard, nativeImage, ipcMain, shell, net } = require('electron');
-const { execFile } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -10,7 +9,7 @@ const os = require('os');
 const W = 480, H = 250; // window size at 100%; the pill lives inside it, the rest is click-through
 const TEMP_EXT = /\.(crdownload|part|partial|download|opdownload|!ut)$/i;
 
-module.exports = function createIsland({ getSettings, win32, dockDisplay, fullscreenOn, webPrefs, safe, media, isGame }) {
+module.exports = function createIsland({ getSettings, win32, dockDisplay, fullscreenOn, webPrefs, safe, media, isGame, stats, also }) {
   let win = null;
   let pill = null;          // pill rectangle inside the window (DIP)
   let capturing = false;
@@ -18,7 +17,8 @@ module.exports = function createIsland({ getSettings, win32, dockDisplay, fullsc
   let lastBounds = '';
   const opts = () => getSettings().island;
   const alive = () => win && !win.isDestroyed();
-  const send = (ch, data) => { if (alive()) win.webContents.send(ch, data); };
+  // Messages go to the island, and on to the companion panel and game HUD (`also`)
+  const send = (ch, data) => { if (alive()) win.webContents.send(ch, data); if (also) also(ch, data); };
 
   function pickDisplay() {
     const o = opts();
@@ -252,37 +252,9 @@ module.exports = function createIsland({ getSettings, win32, dockDisplay, fullsc
     }
   }
 
-  // ---------- PC stats (only measured while you're looking at them) ----------
-  let statsTimer = null, prevCpu = null, gpuMissing = false;
-  const cpuTimes = () => os.cpus().reduce((a, c) => { const t = c.times; a.idle += t.idle; a.total += t.user + t.nice + t.sys + t.idle + t.irq; return a; }, { idle: 0, total: 0 });
-  function gpuStats() {
-    return new Promise((resolve) => {
-      if (gpuMissing || process.platform !== 'win32') return resolve(null);
-      execFile('nvidia-smi', ['--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,name', '--format=csv,noheader,nounits'],
-        { windowsHide: true, timeout: 2000 }, (err, out) => {
-          if (err) { gpuMissing = true; console.error('[stats] no NVIDIA GPU info:', err.message); return resolve(null); }
-          const [util, temp, used, total, name] = String(out).split('\n')[0].split(',').map((x) => x.trim());
-          resolve({ gpu: +util, gpuTemp: +temp, vramUsed: +used, vramTotal: +total, gpuName: name });
-        });
-    });
-  }
-  async function sampleStats() {
-    const now = cpuTimes();
-    const cpu = prevCpu ? Math.round(100 * (1 - (now.idle - prevCpu.idle) / Math.max(1, now.total - prevCpu.total))) : null;
-    prevCpu = now;
-    const total = os.totalmem(), free = os.freemem();
-    // In a game: its frame rate too, when RTSS (MSI Afterburner) is running
-    let fps = null, fpsSource = false;
-    if (isGame() && getSettings().gameFps !== false && win32.available) {
-      try { const fg = win32.foregroundInfo(); const r = fg ? win32.gameFps(fg.pid) : null; fpsSource = r !== null; fps = r ? r.fps : null; } catch { /* no RTSS */ }
-    }
-    send('stats', { cpu, ramUsed: total - free, ramTotal: total, fps, fpsSource, ...(await gpuStats()) });
-  }
-  ipcMain.on('island-stats', (_e, on) => {
-    clearInterval(statsTimer);
-    statsTimer = null;
-    if (on) { prevCpu = cpuTimes(); sampleStats(); statsTimer = setInterval(() => safe('stats', sampleStats), isGame() ? 1000 : 1500); }
-  });
+  // ---------- PC stats (shared sampler in stats.js; measured only while something shows them) ----------
+  ipcMain.on('island-stats', (_e, on) => stats.want('island', !!on));
+  stats.on((st) => send('stats', st));
 
   // ---------- quick launch / resume music ----------
   ipcMain.on('island-launch', (_e, p) => { if ((opts().launch || []).some((x) => x.path === p)) shell.openPath(p); });
