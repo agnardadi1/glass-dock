@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS = {
   stacks: true,
   gameMode: true,
   gameIsland: 'stats',      // 'stats' | 'hide' | 'normal'
+  gameApps: [],             // programs you marked as games from the dock menu
+  notGames: [],             // programs you said aren't games
   gameEdgeReveal: false,    // pushing the mouse to the bottom edge shows the dock during games
   look: DEFAULT_LOOK,
   island: DEFAULT_ISLAND,

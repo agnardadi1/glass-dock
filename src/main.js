@@ -332,7 +332,34 @@ function pollRunningNow() {
 }
 let pollCount = 0;
 let gameActive = false;
-const GAME_DIRS = /\\(steamapps\\common|epic games|riot games|gog galaxy\\games|xboxgames|ea games|ubisoft game launcher\\games|rockstar games|battle\.net|games)\\/i;
+const GAME_DIRS = /\\(steamapps\\common|epic games|riot games|gog galaxy\\games|xboxgames|ea games|ubisoft game launcher\\games|rockstar games|battle\.net|games|world of warcraft|diablo (iii|iv)|overwatch|starcraft( ii)?|hearthstone|heroes of the storm|call of duty|warcraft iii)\\/i;
+// Game files that live outside the usual game folders
+const GAME_EXES = /\\(wow|wowt|wowb|wowclassic|wow-64|wowclassict|diablo iv|overwatch|hearthstone|sc2_x64|starcraft ii|heroesofthestorm_x64|cod|league of legends|valorant-win64-shipping|cs2|dota2|r5apex|fortniteclient-win64-shipping|minecraft\.windows)\.exe$/i;
+// Games Windows itself has recognised (Game Bar keeps a list of them in the registry)
+let windowsGames = new Set();
+function loadWindowsGames() {
+  if (process.platform !== 'win32') return;
+  try {
+    const p = spawn('reg.exe', ['query', 'HKCU\\System\\GameConfigStore\\Children', '/s', '/v', 'MatchedExeFullPath'], { windowsHide: true });
+    let out = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.on('error', () => {});
+    p.on('close', () => {
+      const found = new Set();
+      for (const m of out.matchAll(/MatchedExeFullPath\s+REG_SZ\s+(.+?)\s*$/gm)) found.add(norm(m[1]));
+      if (found.size) windowsGames = found;
+    });
+  } catch { /* no registry */ }
+}
+// Is this program a game? Your own choice from the dock menu wins, then the known lists.
+function isGameExe(exe) {
+  if (!exe) return false;
+  const k = keyOf(exe), s = state.settings;
+  if ((s.notGames || []).includes(k)) return false;
+  if ((s.gameApps || []).includes(k)) return true;
+  if (GAME_LAUNCHERS.test(exe)) return false;
+  return GAME_DIRS.test(exe) || GAME_EXES.test(exe) || windowsGames.has(norm(exe));
+}
 const GAME_LAUNCHERS = /\\(steam\.exe|steamwebhelper\.exe|epicgameslauncher\.exe|riotclientux\.exe|riotclientservices\.exe|galaxyclient\.exe|eadesktop\.exe|upc\.exe|battle\.net\.exe|launcher\.exe)$/i;
 const attention = new Map(); // app key -> when it asked for attention (flashing, like an orange taskbar button)
 function listenForAttention() {
@@ -634,7 +661,7 @@ function visibilityTickNow() {
   }
 
   // Game mode: a full-screen app, or anything running from a game library folder
-  const gameNow = s.gameMode !== false && !!fg && fg.pid !== process.pid && (fullscreen || (GAME_DIRS.test(fg.exe || '') && !GAME_LAUNCHERS.test(fg.exe || '')));
+  const gameNow = s.gameMode !== false && !!fg && fg.pid !== process.pid && (fullscreen || isGameExe(fg.exe));
   if (gameNow !== gameActive) {
     gameActive = gameNow;
     if (island) island.send('game', { on: gameNow, name: gameNow && fg.exe ? appName(keyOf(fg.exe)) : '' });
@@ -770,6 +797,16 @@ ipcMain.on('context', (_e, uid) => {
       ...(list.length ? [{ type: 'separator' }] : []),
       { label: 'New workspace from open windows', click: () => { workspaces.create().then(() => openSettings('workspaces')).catch(() => {}); } },
     ] });
+  }
+  const exeForGame = (g && g.windows[0] && g.windows[0].exe) || (item && item.target) || launchPath;
+  if (key && exeForGame && /\.exe$/i.test(exeForGame)) {
+    tpl.push({ label: 'Treat as a game', type: 'checkbox', checked: isGameExe(exeForGame), click: (mi) => {
+      const st = state.settings;
+      st.gameApps = (st.gameApps || []).filter((k) => k !== key);
+      st.notGames = (st.notGames || []).filter((k) => k !== key);
+      (mi.checked ? st.gameApps : st.notGames).push(key);
+      persist();
+    } });
   }
   if (g) {
     tpl.push({ type: 'separator' });
@@ -1083,6 +1120,7 @@ function registerHotkeys() {
 // ---------- start up / shut down ----------
 app.whenReady().then(async () => {
   await learnGenericIcon();
+  loadWindowsGames(); setInterval(loadWindowsGames, 10 * 60 * 1000); // pick up newly installed games
   // Music glow: lets the dock listen to what the PC is playing (system sound only, nothing is recorded)
   session.defaultSession.setDisplayMediaRequestHandler((_req, callback) => {
     desktopCapturer.getSources({ types: ['screen'] })
