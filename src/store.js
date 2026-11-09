@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS = {
   gameIsland: 'stats',      // 'stats' | 'hide' | 'normal'
   gameApps: [],             // programs you marked as games from the dock menu
   notGames: [],             // programs you said aren't games
+  gameFps: true,            // show the game's frame rate in the island (needs RTSS / MSI Afterburner)
   gameEdgeReveal: false,    // pushing the mouse to the bottom edge shows the dock during games
   look: DEFAULT_LOOK,
   island: DEFAULT_ISLAND,

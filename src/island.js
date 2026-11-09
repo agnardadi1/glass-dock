@@ -271,12 +271,17 @@ module.exports = function createIsland({ getSettings, win32, dockDisplay, fullsc
     const cpu = prevCpu ? Math.round(100 * (1 - (now.idle - prevCpu.idle) / Math.max(1, now.total - prevCpu.total))) : null;
     prevCpu = now;
     const total = os.totalmem(), free = os.freemem();
-    send('stats', { cpu, ramUsed: total - free, ramTotal: total, ...(await gpuStats()) });
+    // In a game: its frame rate too, when RTSS (MSI Afterburner) is running
+    let fps = null, fpsSource = false;
+    if (isGame() && getSettings().gameFps !== false && win32.available) {
+      try { const fg = win32.foregroundInfo(); const r = fg ? win32.gameFps(fg.pid) : null; fpsSource = r !== null; fps = r ? r.fps : null; } catch { /* no RTSS */ }
+    }
+    send('stats', { cpu, ramUsed: total - free, ramTotal: total, fps, fpsSource, ...(await gpuStats()) });
   }
   ipcMain.on('island-stats', (_e, on) => {
     clearInterval(statsTimer);
     statsTimer = null;
-    if (on) { prevCpu = cpuTimes(); sampleStats(); statsTimer = setInterval(() => safe('stats', sampleStats), 1500); }
+    if (on) { prevCpu = cpuTimes(); sampleStats(); statsTimer = setInterval(() => safe('stats', sampleStats), isGame() ? 1000 : 1500); }
   });
 
   // ---------- quick launch / resume music ----------

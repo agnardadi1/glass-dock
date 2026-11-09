@@ -8,7 +8,7 @@ if (!isWin) {
   const noop = () => {};
   module.exports = {
     available: false,
-    listWindows: () => [], foregroundInfo: () => null, windowInfo: () => null, clipboardSeq: () => 0,
+    listWindows: () => [], foregroundInfo: () => null, gameFps: () => null, windowInfo: () => null, clipboardSeq: () => 0,
     focus: noop, minimize: noop, close: noop, rect: () => null, place: noop, raise: noop, moveTo: noop, toTop: noop,
     registerShellHook: () => null, setForegroundRaw: noop, windowIcon: () => null,
     pressKeys: noop, showTaskbars: noop, taskbarAutoHide: () => false, setTaskbarAutoHide: noop,
@@ -115,6 +115,9 @@ if (!isWin) {
     OpenProcess: kernel32.func('void * __stdcall OpenProcess(uint32_t access, bool inherit, uint32_t pid)'),
     QueryFullProcessImageNameW: kernel32.func('bool __stdcall QueryFullProcessImageNameW(void *h, uint32_t flags, uint16_t *buf, _Inout_ uint32_t *size)'),
     CloseHandle: kernel32.func('bool __stdcall CloseHandle(void *h)'),
+    OpenFileMappingW: kernel32.func('void * __stdcall OpenFileMappingW(uint32_t access, bool inherit, str16 name)'),
+    MapViewOfFile: kernel32.func('void * __stdcall MapViewOfFile(void *h, uint32_t access, uint32_t hi, uint32_t lo, size_t bytes)'),
+    UnmapViewOfFile: kernel32.func('bool __stdcall UnmapViewOfFile(void *p)'),
     DwmGetWindowAttribute: dwmapi.func('int32_t __stdcall DwmGetWindowAttribute(HWND hwnd, uint32_t attr, _Out_ uint32_t *val, uint32_t size)'),
   };
 
@@ -258,6 +261,32 @@ const hwndNum = (h) => (Buffer.isBuffer(h) ? h.readBigUInt64LE(0) : h ? koffi.ad
       return f.RegisterWindowMessageW('SHELLHOOK');
     },
     addrOf: (h) => koffi.address(h),
+    // Frame rate of a game, from RivaTuner Statistics Server's shared memory (comes with MSI Afterburner).
+    // Returns { fps } for that process, null if RTSS isn't running or doesn't see the game.
+    gameFps(pid) {
+      const h = f.OpenFileMappingW(4 /* FILE_MAP_READ */, false, 'RTSSSharedMemoryV2');
+      if (!h) return null;
+      let view = null;
+      try {
+        view = f.MapViewOfFile(h, 4, 0, 0, 0);
+        if (!view) return null;
+        const u32 = (off) => koffi.decode(view, off, 'uint32_t');
+        if (u32(0) !== 0x52545353 || u32(4) < 0x00020000) return null; // 'RTSS', v2
+        const entrySize = u32(8), arrOff = u32(12), count = u32(16);
+        for (let i = 0; i < count; i++) {
+          const e = arrOff + i * entrySize;
+          if (u32(e) !== pid) continue;
+          const t0 = u32(e + 268), t1 = u32(e + 272), frames = u32(e + 276), frameTime = u32(e + 280);
+          if (t1 > t0 && frames) return { fps: Math.round(1000 * frames / (t1 - t0)) };
+          if (frameTime) return { fps: Math.round(1e6 / frameTime) };
+          return { fps: 0 };
+        }
+        return null;
+      } finally {
+        if (view) f.UnmapViewOfFile(view);
+        f.CloseHandle(h);
+      }
+    },
     close(hwnd) { f.PostMessageW(hwnd, WM_CLOSE, 0, 0); },
 
     // Presses a key combo, e.g. [0x5B] = Windows key, [0x5B, 0x41] = Win + A

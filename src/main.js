@@ -331,7 +331,7 @@ function pollRunningNow() {
   sendDock();
 }
 let pollCount = 0;
-let gameActive = false;
+let gameActive = false, gameOffSince = 0;
 const GAME_DIRS = /\\(steamapps\\common|epic games|riot games|gog galaxy\\games|xboxgames|ea games|ubisoft game launcher\\games|rockstar games|battle\.net|games|world of warcraft|diablo (iii|iv)|overwatch|starcraft( ii)?|hearthstone|heroes of the storm|call of duty|warcraft iii)\\/i;
 // Game files that live outside the usual game folders
 const GAME_EXES = /\\(wow|wowt|wowb|wowclassic|wow-64|wowclassict|diablo iv|overwatch|hearthstone|sc2_x64|starcraft ii|heroesofthestorm_x64|cod|league of legends|valorant-win64-shipping|cs2|dota2|r5apex|fortniteclient-win64-shipping|minecraft\.windows)\.exe$/i;
@@ -661,7 +661,13 @@ function visibilityTickNow() {
   }
 
   // Game mode: a full-screen app, or anything running from a game library folder
-  const gameNow = s.gameMode !== false && !!fg && fg.pid !== process.pid && (fullscreen || isGameExe(fg.exe));
+  // Game mode: on as soon as a game is in front; off only once something else has been in front for a
+  // moment (a brief flicker of focus, or the dock's own windows, shouldn't make the island blink)
+  let gameNow = s.gameMode !== false && !!fg && fg.pid !== process.pid && (fullscreen || isGameExe(fg.exe));
+  if (gameActive && !gameNow) {
+    if (!fg || fg.pid === process.pid || !fg.exe) gameNow = true; // nothing real in front: stay as we were
+    else if (!gameOffSince) { gameOffSince = now; gameNow = true; } else if (now - gameOffSince < 500) gameNow = true;
+  } else gameOffSince = 0;
   if (gameNow !== gameActive) {
     gameActive = gameNow;
     if (island) island.send('game', { on: gameNow, name: gameNow && fg.exe ? appName(keyOf(fg.exe)) : '' });

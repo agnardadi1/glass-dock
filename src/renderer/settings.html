@@ -187,9 +187,11 @@
     </div>
     <div class="card">
       <label class="row" for="gameMode">Game mode <input id="gameMode" class="switch" type="checkbox"></label>
-      <p class="hint">When a full-screen app or a game from Steam, Epic, Riot, GOG, Xbox, EA, Ubisoft or a Games folder is in front, the dock stays hidden until you Alt + Tab out or close the game, and the island goes quiet.</p>
+      <p class="hint">When a full-screen app or a game is in front (Steam, Epic, Battle.net, Riot, GOG, Xbox, EA, Ubisoft, a Games folder, or anything Windows knows as a game), the dock stays hidden until you Alt + Tab out or close the game, and the island goes quiet. Right-click an icon on the dock and tick "Treat as a game" for anything it misses.</p>
       <label class="row" for="gameEdgeReveal">Let the bottom edge bring the dock back during games <input id="gameEdgeReveal" class="switch" type="checkbox"></label>
       <div class="group"><span class="label">Island while gaming</span><div class="seg" id="gameIsland"></div></div>
+      <label class="row" for="gameFps">Show the game's frame rate in the island <input id="gameFps" class="switch" type="checkbox"></label>
+      <p class="hint">Needs RivaTuner Statistics Server running (it comes with MSI Afterburner, free). Without it the island shows GPU temperature and use only.</p>
     </div>
     <div class="card">
       <label class="row" for="hotkeys">Keyboard shortcuts <input id="hotkeys" class="switch" type="checkbox"></label>

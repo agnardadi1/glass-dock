@@ -31,7 +31,7 @@ function panels() {
 function currentPanel() { const ps = panels(); return ps.includes(panel) ? panel : ps[0]; }
 
 const SIZES = {
-  tiny: [120, 32, 16], compact: [236, 36, 18], wide: [340, 40, 20], card: [400, 158, 30], idleCard: [360, 118, 28], shot: [380, 196, 28],
+  tiny: [120, 32, 16], compact: [236, 36, 18], game: [300, 36, 18], wide: [340, 40, 20], card: [400, 158, 30], idleCard: [360, 118, 28], shot: [380, 196, 28],
 };
 const S2 = 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"';
 const I = {
@@ -75,7 +75,7 @@ function view() {
   if (transient && transient.until < now && !(hover && ['shot', 'done', 'update'].includes(transient.kind))) transient = null;
   // In a game, only volume/device/workspace messages get through; otherwise a tiny stats pill
   if (game && game.on && gameMode !== 'normal' && !(transient && ['volume', 'device', 'ws'].includes(transient.kind))) {
-    return { kind: 'game', size: 'compact', second: null, expanded: false };
+    return { kind: 'game', size: stats && stats.fps != null ? 'game' : 'compact', second: null, expanded: false };
   }
   const l = live();
   let kind = transient ? transient.kind : l[0] || 'idle';
@@ -92,6 +92,14 @@ function view() {
   return { kind, size, second, expanded: ['card', 'wide', 'shot'].includes(size) || size.startsWith('p-') };
 }
 const privacyOn = () => S.privacy && (use.mic.length || use.cam.length);
+
+// The game pill's numbers: FPS (when RTSS is running), GPU temperature, GPU or CPU use, time
+function gameInner() {
+  const fps = stats && stats.fps != null ? `<span class="num" id="gFps" style="min-width:2.4em;text-align:right">${stats.fps}</span><span class="small" style="margin-left:-6px">fps</span>` : '';
+  const t = stats && stats.gpuTemp != null ? `<span class="num" id="gTemp" style="color:${stats.gpuTemp >= 80 ? 'var(--red)' : stats.gpuTemp >= 70 ? 'var(--orange)' : 'var(--green)'}">${stats.gpuTemp}°</span>` : '';
+  const u = stats && stats.gpu != null ? `<span class="small num" id="gUse">GPU ${stats.gpu}%</span>` : stats && stats.cpu != null ? `<span class="small num" id="gUse">CPU ${stats.cpu}%</span>` : '';
+  return `<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.6 5.9A3 3 0 0 0 7.2 17l1.8-2h6l1.8 2a3 3 0 0 0 5.1-2.5l-.6-5.9A4 4 0 0 0 17.3 5z"/></svg>${fps}${t}${u}<div class="grow"></div><span class="num" id="clockSmall" style="font-size:13px">${clock()}</span>`;
+}
 
 function dotsHtml() {
   if (!privacyOn()) return '';
@@ -152,9 +160,7 @@ function html(v) {
     return `<div class="row">${d.input ? I.mic : I.headphones}<div class="grow"><div class="small">${d.input ? 'Microphone' : 'Sound now plays on'}</div><div class="label ell">${esc(d.name)}</div></div></div>`;
   }
   if (k === 'game') {
-    const t = stats && stats.gpuTemp != null ? `<span class="num" id="gTemp" style="color:${stats.gpuTemp >= 80 ? 'var(--red)' : stats.gpuTemp >= 70 ? 'var(--orange)' : 'var(--green)'}">${stats.gpuTemp}°</span>` : '';
-    const u = stats && stats.gpu != null ? `<span class="small num" id="gUse">GPU ${stats.gpu}%</span>` : stats && stats.cpu != null ? `<span class="small num" id="gUse">CPU ${stats.cpu}%</span>` : '';
-    return `<div class="row"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-4 3.6l-.6 5.9A3 3 0 0 0 7.2 17l1.8-2h6l1.8 2a3 3 0 0 0 5.1-2.5l-.6-5.9A4 4 0 0 0 17.3 5z"/></svg>${t}${u}<div class="grow"></div><span class="num" id="clockSmall" style="font-size:13px">${clock()}</span></div>`;
+    return `<div class="row" id="gameBox">${gameInner()}</div>`;
   }
   if (k === 'update') {
     return `<div class="row"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="#0a84ff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5"/></svg><div class="grow"><div class="label">Glass Dock ${esc(transient.data.version)} is ready</div><div class="small">Restart the dock to update</div></div><button class="btn blue" data-act="update">Restart</button></div>`;
@@ -524,8 +530,13 @@ api.onWorkspaceNote((m) => show('ws', m.phase === 'start' ? 20000 : 2200, m));
 api.onWeather((w) => { weather = w; render(); });
 api.onStats((st) => {
   const reshape = !stats || (stats.gpu == null) !== (st.gpu == null); // number of rows changed: refit the panel
+  const fpsChanged = !stats || (stats.fps == null) !== (st.fps == null); // the game pill grows to fit the frame rate
   stats = st;
-  if (game && game.on) { lastSig = ''; render(); return; }
+  if (game && game.on) {
+    const box = $('gameBox');
+    if (box && !fpsChanged) { box.innerHTML = gameInner(); return; } // update the numbers in place: no re-animation
+    lastSig = ''; render(); return;
+  }
   if (reshape) { lastSig = ''; render(); return; }
   const box = $('statsBox');
   if (box) box.innerHTML = statsInner();
